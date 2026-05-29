@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-nic-perf-profiler"
+version = "0.1.0"
+description = "Observability tooling for linking NIC hardware counters with distributed training degradation"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "AI NIC Perf Profiler Team" }]
+license = { text = "MIT" }
+keywords = ["profiling", "training", "networking", "ai", "nic"]
+dependencies = [
+  "click>=8.1",
+]
+
+[project.scripts]
+ai-nic-perf-profiler = "ai_nic_perf_profiler.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

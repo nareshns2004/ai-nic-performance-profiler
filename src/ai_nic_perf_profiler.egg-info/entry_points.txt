@@ -1,0 +1,2 @@
+[console_scripts]
+ai-nic-perf-profiler = ai_nic_perf_profiler.cli:main

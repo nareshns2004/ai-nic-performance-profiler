@@ -1,0 +1,117 @@
+Metadata-Version: 2.4
+Name: ai-nic-perf-profiler
+Version: 0.1.0
+Summary: Observability tooling for linking NIC hardware counters with distributed training degradation
+Author: AI NIC Perf Profiler Team
+License: MIT
+Keywords: profiling,training,networking,ai,nic
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: click>=8.1
+Dynamic: license-file
+
+# ai-nic-perf-profiler
+
+ai-nic-perf-profiler is an observability-oriented toolkit for correlating NIC hardware counters with distributed training performance regressions. The goal is to help operators identify whether slowdowns are caused by fabric topology issues, RDMA tuning mismatches, SR-IOV partition constraints, or other network-level bottlenecks.
+
+## Why this project exists
+
+Modern GPU clusters often show throughput degradation during distributed training, but the root cause is not always obvious. This project provides a lightweight profiling scaffold for collecting network-related signals and associating them with training performance indicators so teams can make more informed tuning and capacity decisions.
+
+## Key capabilities
+
+- Capture NIC-oriented metrics such as packet activity and throughput-related observations
+- Model profile samples that can be paired with distributed training performance data
+- Provide a simple command-line entry point for running and inspecting a profile session
+- Offer a Python package structure that can grow into richer collectors, exporters, and analysis routines
+
+## Project structure
+
+- `src/ai_nic_perf_profiler/` — core Python package for configuration, metrics, profiling, and CLI entry points
+- `tests/` — smoke and regression tests for the profiler package
+- `examples/` — example scripts that demonstrate basic usage
+- `configs/` — sample configuration files for runtime settings
+- `scripts/` — operational helper scripts for running the profiler
+- `docs/` — architecture notes and design context
+
+## Installation
+
+From the repository root:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+To install the package in editable mode:
+
+```bash
+pip install -e .
+```
+
+## Quick start
+
+Run the profiler entry point:
+
+```bash
+PYTHONPATH=src python3 -m ai_nic_perf_profiler
+```
+
+You can also invoke the helper script:
+
+```bash
+bash scripts/run_profiler.sh
+```
+
+## Example usage
+
+A minimal example is available in [examples/basic_usage.py](examples/basic_usage.py). It creates a profiler instance, records a few sample observations, and prints a summary.
+
+## Configuration
+
+The default configuration lives in [configs/default.yaml](configs/default.yaml). The current scaffold supports:
+
+- `sample_interval` — interval between collected samples
+- `report_path` — output destination for generated reports
+- `enable_diagnostics` — toggle for enabling extra diagnostics
+
+## Architecture overview
+
+The current implementation is intentionally small and modular:
+
+- `ProfilerConfig` defines runtime settings
+- `Sample` represents a single metric observation
+- `MetricCollector` stores and summarizes samples
+- `PerfProfiler` orchestrates recording and reporting
+- `cli.py` provides the command-line interface
+
+This structure is designed to be extended with real NIC collector integrations and richer analysis logic over time.
+
+## Testing
+
+Run the test suite with:
+
+```bash
+PYTHONPATH=src python3 -m pytest -q
+```
+
+## Verification status
+
+The current scaffold has been verified by compiling the source tree and executing a minimal in-memory profiling run successfully.
+
+## Roadmap
+
+Potential next steps for the project include:
+
+- integration with real NIC telemetry sources
+- support for richer time-series analysis and anomaly detection
+- export to JSON, CSV, or Prometheus-compatible formats
+- visualization and reporting dashboards
+- cluster-level correlation with training job metadata
+
+## Contributing
+
+Contributions are welcome. If you are extending the profiler, please keep the package modular, document new behavior clearly, and add tests for any new functionality.
+
