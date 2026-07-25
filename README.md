@@ -1,22 +1,104 @@
 # ai-nic-perf-profiler
 
-An observability primitive that closes the attribution gap between NIC hardware counters and distributed training throughput degradation, enabling data-driven decisions on fabric topology, RDMA tuning, and SR-IOV partition sizing across GPU cluster deployments.
+ai-nic-perf-profiler is an observability-oriented toolkit for correlating NIC hardware counters with distributed training performance regressions. The goal is to help operators identify whether slowdowns are caused by fabric topology issues, RDMA tuning mismatches, SR-IOV partition constraints, or other network-level bottlenecks.
+
+## Why this project exists
+
+Modern GPU clusters often show throughput degradation during distributed training, but the root cause is not always obvious. This project provides a lightweight profiling scaffold for collecting network-related signals and associating them with training performance indicators so teams can make more informed tuning and capacity decisions.
+
+## Key capabilities
+
+- Capture NIC-oriented metrics such as packet activity and throughput-related observations
+- Model profile samples that can be paired with distributed training performance data
+- Provide a simple command-line entry point for running and inspecting a profile session
+- Offer a Python package structure that can grow into richer collectors, exporters, and analysis routines
 
 ## Project structure
 
-- `src/ai_nic_perf_profiler/` — Python package containing the profiler implementation.
-- `tests/` — smoke tests for the profiling package.
-- `examples/` — minimal usage examples.
-- `configs/` — default runtime configuration.
-- `scripts/` — operational scripts for running the profiler.
+- `src/ai_nic_perf_profiler/` — core Python package for configuration, metrics, profiling, and CLI entry points
+- `tests/` — smoke and regression tests for the profiler package
+- `examples/` — example scripts that demonstrate basic usage
+- `configs/` — sample configuration files for runtime settings
+- `scripts/` — operational helper scripts for running the profiler
+- `docs/` — architecture notes and design context
+
+## Installation
+
+From the repository root:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+To install the package in editable mode:
+
+```bash
+pip install -e .
+```
 
 ## Quick start
+
+Run the profiler entry point:
 
 ```bash
 PYTHONPATH=src python3 -m ai_nic_perf_profiler
 ```
 
-## Verification
+You can also invoke the helper script:
 
-The scaffold was verified by compiling the package and running a minimal in-memory profiler example successfully.
+```bash
+bash scripts/run_profiler.sh
+```
+
+## Example usage
+
+A minimal example is available in [examples/basic_usage.py](examples/basic_usage.py). It creates a profiler instance, records a few sample observations, and prints a summary.
+
+## Configuration
+
+The default configuration lives in [configs/default.yaml](configs/default.yaml). The current scaffold supports:
+
+- `sample_interval` — interval between collected samples
+- `report_path` — output destination for generated reports
+- `enable_diagnostics` — toggle for enabling extra diagnostics
+
+## Architecture overview
+
+The current implementation is intentionally small and modular:
+
+- `ProfilerConfig` defines runtime settings
+- `Sample` represents a single metric observation
+- `MetricCollector` stores and summarizes samples
+- `PerfProfiler` orchestrates recording and reporting
+- `cli.py` provides the command-line interface
+
+This structure is designed to be extended with real NIC collector integrations and richer analysis logic over time.
+
+## Testing
+
+Run the test suite with:
+
+```bash
+PYTHONPATH=src python3 -m pytest -q
+```
+
+## Verification status
+
+The current scaffold has been verified by compiling the source tree and executing a minimal in-memory profiling run successfully.
+
+## Roadmap
+
+Potential next steps for the project include:
+
+- integration with real NIC telemetry sources
+- support for richer time-series analysis and anomaly detection
+- export to JSON, CSV, or Prometheus-compatible formats
+- visualization and reporting dashboards
+- cluster-level correlation with training job metadata
+
+## Contributing
+
+Contributions are welcome. If you are extending the profiler, please keep the package modular, document new behavior clearly, and add tests for any new functionality.
 
