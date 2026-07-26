@@ -56,6 +56,16 @@ bash scripts/run_profiler.sh
 
 A minimal example is available in [examples/basic_usage.py](examples/basic_usage.py). It creates a profiler instance, records a few sample observations, and prints a summary.
 
+To export Grafana-friendly metrics, run the CLI with both a JSON report and a Prometheus metrics file:
+
+```bash
+PYTHONPATH=src python3 -m ai_nic_perf_profiler \
+  --report-path report.json \
+  --metrics-path metrics.prom
+```
+
+The generated metrics file exposes throughput and latency samples in a Prometheus-compatible format that can be scraped by a Prometheus server and visualized in Grafana.
+
 ## Configuration
 
 The default configuration lives in [configs/default.yaml](configs/default.yaml). The current scaffold supports:

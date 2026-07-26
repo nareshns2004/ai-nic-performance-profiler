@@ -9,4 +9,5 @@ class ProfilerConfig:
 
     sample_interval: float = 0.5
     report_path: str = "report.json"
+    metrics_path: str | None = None
     enable_diagnostics: bool = True
