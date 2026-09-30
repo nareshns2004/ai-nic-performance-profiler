@@ -1,0 +1,37 @@
+groups:
+  - name: nicprof
+    rules:
+      - alert: NicprofAgentFallingBehind
+        expr: increase(nicprof_agent_overruns_total[10m]) > 5
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "nicprof agent on {{ $labels.instance }} is overrunning its sampling interval"
+
+      - alert: RdmaPortPausedHeavily
+        # Fraction of time the port's transmitter was held by PFC (µs paused per second / 1e6).
+        expr: nicprof_counter_rate{counter="rx_pause_duration_us"} / 1e6 > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.host }}:{{ $labels.device }} paused >5% of the time"
+
+      - alert: RdmaReceiveDrops
+        expr: nicprof_counter_rate{counter=~"out_of_buffer|rx_discards_phy"} > 10
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.host }}:{{ $labels.device }} dropping {{ $value }} pkt/s ({{ $labels.counter }})"
+
+      - alert: RdmaLinkDownshift
+        expr: nicprof_link_speed_bps < on(host, device) group_left max by (host, device) (max_over_time(nicprof_link_speed_bps[1d]))
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.host }}:{{ $labels.device }} link speed dropped below its 24h max"
+
+      - alert: TrainingSlowdownAttributed
+        expr: nicprof_attributed_seconds > 0 and on(job, episode) nicprof_episode_slowdown_ratio > 1.05
+        labels: {severity: info}
+        annotations:
+          summary: "Job {{ $labels.job }} slowed >5%; {{ $labels.cause }} ({{ $labels.scope }}) attributed {{ $value }}s"
