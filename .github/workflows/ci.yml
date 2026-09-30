@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests benchmarks examples
+      - run: ruff format --check src tests benchmarks examples
+      - run: mypy
+      - run: pytest -q
+      - name: Smoke-run demo and quick benchmark
+        run: |
+          nicprof demo > /dev/null
+          python benchmarks/run_benchmarks.py --quick --out /tmp/results.md > /dev/null

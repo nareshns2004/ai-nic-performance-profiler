@@ -1,0 +1,11 @@
+# Rank-to-NIC bindings. Generate from your launcher (NCCL_IB_HCA / rank placement) and inventory.
+link_gbps: 400
+lossless_priority: 3
+# Only needed if step events for some ranks are missing (e.g. rank-0-only logging):
+# seconds to ADD to each host's timestamps to reach a common clock (from chrony/PTP offsets).
+clock_offsets: {}
+ranks:
+  - {rank: 0, host: gpu-node-001, device: mlx5_0, port: 1, rail: 0, leaf: leaf-a}
+  - {rank: 1, host: gpu-node-001, device: mlx5_1, port: 1, rail: 1, leaf: leaf-a}
+  - {rank: 2, host: gpu-node-002, device: mlx5_0, port: 1, rail: 0, leaf: leaf-a}
+  - {rank: 3, host: gpu-node-002, device: mlx5_1, port: 1, rail: 1, leaf: leaf-a}

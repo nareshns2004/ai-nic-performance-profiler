@@ -1,0 +1,21 @@
+[Unit]
+Description=nicprof NIC counter agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/nicprof collect --config /etc/nicprof/config.yaml
+Restart=on-failure
+RestartSec=5
+DynamicUser=yes
+StateDirectory=nicprof
+ReadOnlyPaths=/sys
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+CPUQuota=20%
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

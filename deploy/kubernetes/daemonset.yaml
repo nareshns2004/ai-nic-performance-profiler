@@ -1,0 +1,55 @@
+# One agent per GPU node. sysfs counters are world-readable, so the agent needs
+# no privileges beyond host networking (to see the host's netdevs) and a
+# read-only /sys mount. ethtool -S also works unprivileged for stats.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nicprof-agent
+  namespace: monitoring
+  labels: {app: nicprof-agent}
+spec:
+  selector:
+    matchLabels: {app: nicprof-agent}
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 10%}
+  template:
+    metadata:
+      labels: {app: nicprof-agent}
+    spec:
+      hostNetwork: true
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      tolerations:
+        - operator: Exists
+      priorityClassName: system-node-critical
+      containers:
+        - name: agent
+          image: ghcr.io/nareshns2004/nicprof:0.2.0
+          args:
+            - collect
+            - --interval=1
+            - --source=rdma
+            - --out=/data/counters.jsonl
+            - --prom-textfile=/textfile/nicprof.prom
+          env:
+            - name: NODE_NAME
+              valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {cpu: 200m, memory: 256Mi}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: sys, mountPath: /sys, readOnly: true}
+            - {name: data, mountPath: /data}
+            - {name: textfile, mountPath: /textfile}
+      volumes:
+        - name: sys
+          hostPath: {path: /sys}
+        - name: data
+          hostPath: {path: /var/lib/nicprof, type: DirectoryOrCreate}
+        - name: textfile
+          hostPath: {path: /var/lib/node_exporter/textfile, type: DirectoryOrCreate}

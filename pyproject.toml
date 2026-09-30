@@ -4,22 +4,38 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-nic-perf-profiler"
-version = "0.1.0"
-description = "Observability tooling for linking NIC hardware counters with distributed training degradation"
+version = "0.2.0"
+description = "Attribute distributed-training throughput regressions to NIC hardware counter evidence (RDMA, PFC/ECN, SR-IOV)"
 readme = "README.md"
 requires-python = ">=3.10"
-authors = [{ name = "AI NIC Perf Profiler Team" }]
-license = { text = "MIT" }
-keywords = ["profiling", "training", "networking", "ai", "nic"]
+authors = [{ name = "nareshns2004" }]
+license = { text = "Apache-2.0" }
+keywords = ["rdma", "roce", "infiniband", "nccl", "observability", "distributed-training", "sr-iov", "gpu-cluster"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: System :: Monitoring",
+  "Topic :: System :: Networking :: Monitoring",
+]
 dependencies = [
   "click>=8.1",
+  "numpy>=1.24",
+  "PyYAML>=6.0",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.5", "mypy>=1.10", "types-PyYAML"]
+
+[project.urls]
+Repository = "https://github.com/nareshns2004/ai-nic-perf-profiler"
+
 [project.scripts]
+nicprof = "ai_nic_perf_profiler.cli:main"
 ai-nic-perf-profiler = "ai_nic_perf_profiler.cli:main"
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -27,3 +43,23 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 160
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = [
+  "E501",                              # formatter owns line length; long message strings are fine
+  "RUF001", "RUF002", "RUF003",        # σ, ², → in user-facing text are intentional
+]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = true

@@ -1,3 +1,25 @@
-sample_interval: 0.5
-report_path: report.json
-enable_diagnostics: true
+# nicprof configuration. Every key is optional; defaults shown.
+
+agent:
+  interval_s: 1.0            # sysfs reads are ~1 ms per port; 0.1-0.25 s is fine for sysfs-only
+  sources: [rdma, netdev]    # rdma: /sys/class/infiniband, netdev: /sys/class/net
+  rdma_devices: null         # e.g. [mlx5_0, mlx5_1]; null = all
+  netdev_interfaces: null    # null = all physical interfaces not already covered by rdma
+  ethtool_interfaces: []     # RoCE netdevs to read PFC pause/duration + PHY counters from (forks ethtool; keep interval_s >= 1)
+  sriov_pfs: []              # PFs whose per-VF stats and rate caps to collect
+  lossless_priority: 3       # PFC priority carrying RDMA traffic
+  output: counters.jsonl
+  prometheus_textfile: null  # e.g. /var/lib/node_exporter/textfile/nicprof.prom
+  ring_buffer: 600
+
+analysis:
+  warmup_steps: 10           # skip compilation / cache warmup
+  baseline_steps: null       # [start, end) of a known-good window; null = first 25% after warmup
+  baseline_fraction: 0.25
+  degradation_sigma: 4.0     # robust sigmas above baseline median
+  min_relative_slowdown: 0.03  # and at least 3% slower: below this, don't page anyone
+  min_episode_steps: 3       # shorter runs are checkpoints / eval passes
+  merge_gap_steps: 2
+  culprit_z: 6.0             # per-rank anomaly threshold for localisation
+  min_coverage: 0.5          # fraction of a step window that must have counter data
+  ridge_lambda: 1.0
