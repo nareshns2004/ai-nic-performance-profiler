@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make check)",
+      "Bash(make test)",
+      "Bash(make lint)",
+      "Bash(make typecheck)",
+      "Bash(make demo)",
+      "Bash(python3 -m pytest:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff check:*)",
+      "Bash(ruff format:*)",
+      "Bash(mypy:*)",
+      "Bash(nicprof demo:*)",
+      "Bash(nicprof evaluate:*)",
+      "Bash(nicprof scenarios:*)",
+      "Bash(nicprof simulate:*)",
+      "Bash(nicprof analyze:*)",
+      "Bash(nicprof discover:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)"
+    ],
+    "ask": [
+      "Bash(setpci:*)",
+      "Bash(sudo:*)",
+      "Bash(ethtool -s:*)",
+      "Bash(ip link set:*)",
+      "Bash(mlxconfig:*)",
+      "Bash(mlxlink:*)",
+      "Bash(nvidia-smi -lgc:*)",
+      "Bash(nvidia-smi -rgc:*)",
+      "Bash(sysctl -w:*)",
+      "Bash(scripts/hw_campaign/:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}
