@@ -17,6 +17,24 @@ Across ranks, comparison is by **step number**, which works as a logical clock. 
 offsets matter only when a rank's step events are missing and borrowed from
 another host (rank-0-only logging). Then `topology.clock_offsets` shifts the window.
 
+**Clock steps on one host.** Sharing a host clock is not enough if that clock
+*jumps*: an NTP or chrony `makestep` mid-job moves every later timestamp, and
+the step and the rate interval that straddle the jump absorb it (a 0.4 s step
+becomes 2.4 s; one rate interval is stretched and its rate deflated). So both
+sides record two clocks: wall time and `CLOCK_MONOTONIC` nanoseconds
+(`mono_ns` on counter snapshots, `mono_start_ns`/`mono_end_ns` on step events).
+`CLOCK_MONOTONIC` is system-wide on Linux, so the agent and the training
+process read the same timeline. Before alignment, `rebase_on_monotonic`
+rewrites each host's timestamps as `mono + median(wall − mono)` when every
+record from that host has monotonic stamps. Alignment then follows the monotonic
+clock exactly, and values stay close to wall time for cross-host
+`clock_offsets` and display. Rate intervals use `Δmono` whenever both reads have it.
+Files from 0.2 have no monotonic fields and fall back to wall time; the
+report's data-quality section says how many hosts were aligned on the monotonic
+clock. A reboot resets `CLOCK_MONOTONIC`, so treat a reboot as a new job.
+`tests/test_clock.py` steps one host's wall clock by +2 s mid-run and checks
+that attribution is unchanged.
+
 **Sampling resolution.** Window averages blur when the sampling interval is
 comparable to the step time: a 1 s sample straddling three 0.4 s steps smears
 one step's anomaly into its neighbours. `benchmarks/RESULTS.md` §4 shows this

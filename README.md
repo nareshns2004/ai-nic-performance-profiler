@@ -40,7 +40,8 @@ flowchart LR
    and per-VF stats and rate caps from `ip -j link`. Canonicalise across sources and handle 32-bit wrap, saturating
    IB error counters and driver resets explicitly.
 2. **Align** by integrating each rank's NIC rates over *that rank's* step windows. They share a host clock, so
-   cross-host skew drops out; step number acts as a logical clock across hosts.
+   cross-host skew drops out; step number acts as a logical clock across hosts. Both sides also record
+   `CLOCK_MONOTONIC`, so an NTP step mid-job can't shift windows against counters.
 3. **Detect** degradation episodes against a median/MAD baseline, ignoring checkpoint spikes.
 4. **Decompose** excess step time with non-negative ridge regression on the *worst rank per feature* (collectives
    run at the slowest link's pace). For an additive model, coefficient × delta is the exact Shapley value.

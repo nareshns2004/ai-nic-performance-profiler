@@ -85,6 +85,7 @@ def render(report: AttributionReport) -> str:
         + (f" (missing: {', '.join(dq.missing_endpoints)})" if dq.missing_endpoints else ""),
         f"- Step windows: {dq.windows_total}, low counter coverage: {dq.windows_low_coverage}, inferred from another rank's clock: {dq.windows_inferred}",
         f"- Counter anomalies handled: {', '.join(f'{k}={v}' for k, v in sorted(dq.counter_flags.items())) or 'none'}",
+        f"- Hosts aligned on the monotonic clock: {dq.hosts_on_monotonic} (others use wall time)",
         "",
     ]
     return "\n".join(out)

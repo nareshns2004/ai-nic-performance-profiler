@@ -23,7 +23,7 @@ from pathlib import Path
 
 from ..counters.catalog import RDMA_HW_COUNTERS, RDMA_SYSFS_COUNTERS, canonicalize
 from ..model import CounterSnapshot
-from .base import Clock, Collector, read_counter_dir
+from .base import Clock, Collector, midpoint, read_counter_dir
 
 _RATE = re.compile(r"([\d.]+)\s*Gb/sec")
 
@@ -101,17 +101,17 @@ class RdmaSysfsCollector(Collector):
     def collect(self) -> list[CounterSnapshot]:
         out: list[CounterSnapshot] = []
         for port in self._discover_cached():
-            t_start = self.clock()
+            t_start = self.stamp()
             raw = read_counter_dir(port.path / "counters")
             counters = canonicalize(raw, RDMA_SYSFS_COUNTERS)
             if self.include_hw_counters:
                 counters.update(canonicalize(read_counter_dir(port.path / "hw_counters"), RDMA_HW_COUNTERS))
-            t_end = self.clock()
+            ts, mono = midpoint(t_start, self.stamp())
             # Speed can change under us (auto-negotiation downshift), so re-read it.
             rate = _read_text(port.path / "rate")
             rate_bps = parse_rate(rate) if rate else None
             gauges = {"link_speed_bps": rate_bps} if rate_bps else {}
-            out.append(CounterSnapshot(self.host, port.device, port.port, (t_start + t_end) / 2, counters, gauges, self.name))
+            out.append(CounterSnapshot(self.host, port.device, port.port, ts, counters, gauges, self.name, mono))
         return out
 
 

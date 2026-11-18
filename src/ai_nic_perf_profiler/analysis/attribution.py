@@ -33,7 +33,7 @@ from ..counters.rates import rate_series
 from ..model import CounterSnapshot
 from ..topology import Topology
 from ..training.events import StepEvent
-from .align import RateIndex, build_step_table
+from .align import RateIndex, build_step_table, rebase_on_monotonic
 from .baseline import choose_baseline, degraded_mask, find_episodes, robust_center_scale
 from .diagnosis import Diagnosis, EpisodeEvidence, diagnose
 from .features import FEATURE_INDEX, FEATURE_NAMES, SPEC, derive_features
@@ -90,6 +90,7 @@ class DataQuality:
     windows_low_coverage: int
     windows_inferred: int
     counter_flags: dict[str, int]
+    hosts_on_monotonic: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return self.__dict__.copy()
@@ -132,6 +133,7 @@ def analyze(
 ) -> AttributionReport:
     cfg = config or AnalysisConfig()
 
+    snapshots, steps, mono_hosts = rebase_on_monotonic(snapshots, steps, topology)
     series = rate_series(snapshots)
     flags = Counter(flag.split(":")[0] for samples in series.values() for s in samples for flag in s.flags)
     indexes = {key: RateIndex(samples) for key, samples in series.items()}
@@ -260,6 +262,7 @@ def analyze(
             windows_low_coverage=low_cov,
             windows_inferred=int(table.inferred.sum()),
             counter_flags=dict(flags),
+            hosts_on_monotonic=len(mono_hosts),
         ),
         step_series={
             "step": table.steps.tolist(),

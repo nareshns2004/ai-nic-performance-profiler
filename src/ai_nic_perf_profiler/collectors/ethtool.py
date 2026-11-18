@@ -14,7 +14,7 @@ from collections.abc import Callable
 
 from ..counters.catalog import ETHTOOL_COUNTERS, canonicalize
 from ..model import CounterSnapshot
-from .base import Clock, Collector
+from .base import Clock, Collector, midpoint
 
 Runner = Callable[[list[str]], str]
 
@@ -56,12 +56,12 @@ class EthtoolCollector(Collector):
     def collect(self) -> list[CounterSnapshot]:
         out: list[CounterSnapshot] = []
         for iface in self.interfaces:
-            t_start = self.clock()
+            t_start = self.stamp()
             try:
                 text = self.runner(["ethtool", "-S", iface])
             except (OSError, subprocess.SubprocessError):
                 continue
-            t_end = self.clock()
+            ts, mono = midpoint(t_start, self.stamp())
             counters = canonicalize(parse_ethtool_stats(text), ETHTOOL_COUNTERS, self.lossless_priority)
-            out.append(CounterSnapshot(self.host, iface, 1, (t_start + t_end) / 2, counters, {}, self.name))
+            out.append(CounterSnapshot(self.host, iface, 1, ts, counters, {}, self.name, mono))
         return out

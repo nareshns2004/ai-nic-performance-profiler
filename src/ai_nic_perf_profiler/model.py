@@ -31,7 +31,9 @@ class CounterSnapshot:
     cumulative value in canonical units (bytes, packets, events, microseconds).
     ``gauges`` holds instantaneous values such as the negotiated link speed.
     ``timestamp`` is the host's wall clock (seconds since epoch) taken at the
-    midpoint of the read.
+    midpoint of the read. ``mono_ns`` is the host's ``CLOCK_MONOTONIC`` at the
+    same instant; it is immune to NTP steps and is what per-host alignment uses
+    when both counters and step events carry it. Older files lack it (``None``).
     """
 
     host: str
@@ -41,6 +43,7 @@ class CounterSnapshot:
     counters: dict[str, int]
     gauges: dict[str, float] = field(default_factory=dict)
     source: str = ""
+    mono_ns: int | None = None
 
     @property
     def endpoint(self) -> Endpoint:
@@ -58,6 +61,8 @@ class CounterSnapshot:
             out["g"] = self.gauges
         if self.source:
             out["src"] = self.source
+        if self.mono_ns is not None:
+            out["mono_ns"] = self.mono_ns
         return out
 
     @classmethod
@@ -70,6 +75,7 @@ class CounterSnapshot:
             counters={k: int(v) for k, v in d["c"].items()},
             gauges={k: float(v) for k, v in d.get("g", {}).items()},
             source=d.get("src", ""),
+            mono_ns=int(d["mono_ns"]) if d.get("mono_ns") is not None else None,
         )
 
 

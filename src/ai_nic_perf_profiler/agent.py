@@ -6,9 +6,10 @@ Design points:
   monotonic clock, so a slow read doesn't shift every later sample. If a read
   overruns a whole interval, the missed ticks are skipped and counted rather
   than bursting to catch up.
-* **Wall-clock timestamps** on samples (not monotonic) so that step events
-  from the training process on the same host line up. Cross-host comparison
-  goes through step numbers; see :mod:`analysis.align`.
+* **Two timestamps** on every sample: wall clock (for cross-host display and
+  ``clock_offsets``) and ``CLOCK_MONOTONIC`` (shared by every process on the
+  host, immune to NTP steps). Per-host alignment with step events uses the
+  monotonic one when both sides have it; see :mod:`analysis.align`.
 * **Bounded memory**: recent rate samples live in a ring buffer. The full
   cumulative history goes to an append-only JSONL file that is cheap to ship
   off-host when an episode needs analysis.

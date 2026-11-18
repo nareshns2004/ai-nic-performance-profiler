@@ -89,15 +89,18 @@ def test_jsonl_gzip_round_trip(tmp_path) -> None:
     assert read_steps([tmp_path / "e.jsonl"]) == events
 
 
-def test_step_recorder(tmp_path) -> None:
+def test_step_recorder_sync_mode(tmp_path) -> None:
     ticks = iter([1.0, 1.5, 2.0, 2.75])
+    mono = iter([10_000_000_000, 10_500_000_000, 11_000_000_000, 11_750_000_000])
     syncs = []
-    with StepRecorder(tmp_path / "s.jsonl", rank=3, host="h", sync=lambda: syncs.append(1), clock=lambda: next(ticks)) as rec:
+    rec = StepRecorder(tmp_path / "s.jsonl", rank=3, host="h", sync=lambda: syncs.append(1), clock=lambda: next(ticks), mono_clock=lambda: next(mono))
+    with rec:
         for _ in range(2):
             with rec.step():
                 pass
     events = read_steps([tmp_path / "s.jsonl"])
     assert [(e.step, e.duration) for e in events] == [(0, 0.5), (1, 0.75)]
+    assert events[0].mono_start_ns == 10_000_000_000 and events[0].start == 1.0
     assert len(syncs) == 4
 
 

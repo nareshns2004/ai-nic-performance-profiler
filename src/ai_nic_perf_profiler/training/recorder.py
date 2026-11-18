@@ -14,6 +14,10 @@ drifts from the GPU-side one and the step window no longer lines up with the
 NIC traffic it caused. Synchronising once per step costs little relative to a
 multi-hundred-millisecond step; for tighter loops, pass a function that
 records CUDA events instead.
+
+Every event carries both wall-clock time (for cross-host display) and
+``CLOCK_MONOTONIC`` nanoseconds (for per-host alignment that survives an NTP
+step mid-job). See ``docs/methodology.md`` §1.
 """
 
 from __future__ import annotations
@@ -38,11 +42,13 @@ class StepRecorder:
         sync: Callable[[], None] | None = None,
         clock: Callable[[], float] = time.time,
         flush_every: int = 50,
+        mono_clock: Callable[[], int] = time.monotonic_ns,
     ) -> None:
         self.rank = rank
         self.host = host or socket.gethostname()
         self.sync = sync
         self.clock = clock
+        self.mono_clock = mono_clock
         self.flush_every = flush_every
         self._step = 0
         # Long-lived handle for the life of the training job; closed via close()/__exit__.
@@ -52,12 +58,12 @@ class StepRecorder:
     def step(self, comm_bytes: int = 0) -> Iterator[None]:
         if self.sync:
             self.sync()
-        start = self.clock()
+        start, mono_start = self.clock(), self.mono_clock()
         yield
         if self.sync:
             self.sync()
-        end = self.clock()
-        event = StepEvent(self.rank, self._step, start, end, self.host, comm_bytes)
+        end, mono_end = self.clock(), self.mono_clock()
+        event = StepEvent(self.rank, self._step, start, end, self.host, comm_bytes, mono_start, mono_end)
         self._fh.write(json.dumps(event.to_dict()) + "\n")
         self._step += 1
         if self._step % self.flush_every == 0:

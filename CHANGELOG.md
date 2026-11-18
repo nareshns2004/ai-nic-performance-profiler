@@ -2,12 +2,19 @@
 
 ## Unreleased: hardening and honest evaluation
 
-Works through audit item B5 from the project booklet.
+Works through audit items B4 and B5 from the project booklet.
 
 ### Fixed
 - **B5: silent saturation.** A saturating IB error counter that *reaches* its maximum inside an interval
   (`prev < max`, `cur == max`) is now flagged `saturated`. Its delta is kept as a lower bound; before, it was
   returned with no flag.
+- **B4: wall-clock steps.** Counter snapshots (`mono_ns`) and step events (`mono_start_ns` / `mono_end_ns`) now carry
+  `CLOCK_MONOTONIC` alongside wall time. `rebase_on_monotonic` aligns each host on its monotonic clock when every
+  record from it has one, and rate intervals use Δmono. A test steps one host's wall clock by +2 s mid-run and checks
+  that attribution is unchanged. Files from 0.2 still load and fall back to wall time.
+
+### Added
+- Data quality reports how many hosts were aligned on the monotonic clock.
 
 ## 0.2.0: attribution engine
 
