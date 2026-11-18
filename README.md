@@ -55,22 +55,28 @@ flowchart LR
 Details: [architecture](docs/architecture.md) · [methodology](docs/methodology.md) ·
 [counter reference](docs/counter-reference.md) · [design decisions](docs/design-decisions.md)
 
-## Results
+## Results: pipeline consistency (simulator, not hardware)
 
-Measured with the built-in fault-injection simulator: 16 ranks, 2 leaves, 400G, 1% step jitter, clock skew, counter
-resets and checkpoint spikes. These numbers validate the pipeline, **not real hardware accuracy**
-([why, and the hardware validation plan](docs/methodology.md#6-evaluation-and-what-it-does-and-doesnt-prove)).
-Full tables and reproduction: [`benchmarks/RESULTS.md`](benchmarks/RESULTS.md).
+**There are no hardware results yet.** Every number below comes from the built-in fault-injection simulator (16 ranks,
+2 leaves, 400G, 1% step jitter, clock skew, counter resets, checkpoint spikes). The simulator and the diagnosis rules
+share one domain model, so the main table shows that the pipeline is *consistent* (alignment, baselining,
+decomposition and localisation under noise), not that it is accurate on real NICs. The hardware plan sits beside these
+numbers: [H1-H10](docs/methodology.md#hardware-validation-plan), with gated injection scripts in
+[`scripts/hw_campaign/`](scripts/hw_campaign/README.md). Full tables and reproduction:
+[`benchmarks/RESULTS.md`](benchmarks/RESULTS.md).
 
-| | Result |
+| Simulator test | Result |
 |---|---|
-| Top-1 root cause, 8 fault types × 10 seeds | **80/80**, culprit precision/recall 100%, 93-99% of excess explained |
+| Single faults the rules were written for, 8 types × 10 seeds | 80/80 top-1, culprit precision/recall 100%, 93-99% of excess explained (a consistency check) |
+| **Adversarial mode**: decoy port, noisy ECN baseline, background tenants | **45%** top-1 (36/80); the decoy port alone drops it to 62%. Weaknesses found: correlated non-causal counters, cross-rank evidence scoring |
+| **Two concurrent faults**, 2 pairs × 10 seeds | both faults reported in 100% of runs; which one is the bottleneck: 0% and 50% (not identifiable from timing) |
 | Healthy runs (spikes, reset, skew) | 0 false-positive episodes |
 | Compute straggler (network healthy) | correctly reported as *not the network*; only 17% of excess attributed to counters |
 | Rank-0-only step logging (clock-offset path) | 40/40 |
 | Detection floor (severity sweep) | 100% at ≥ 6% slowdown, 88% at ~4%, 38% at ~2%. **Detection, not attribution, is the limit** |
 | Sampling interval 0.05-1.6 s (step 0.39 s) | no loss on sustained episodes |
-| Analysis cost | ~130 µs per (step × rank), linear; 512 ranks × 120 steps in 8.3 s, single process |
+| Analysis cost | ~130 µs per (step × rank), linear; 512 ranks × 120 steps in 8.0 s, single process |
+| Fork-free ethtool read (this machine, not mlx5) | 54 µs median via SIOCETHTOOL vs 656 µs for `ethtool -S` |
 
 Advisor highlights:
 - **SR-IOV**: 4 VFs bursting to 150 Gb/s on a 400G PF. When the bursts are synchronised (one DP job), the synchrony
@@ -152,8 +158,8 @@ docs/            architecture · methodology · counter reference · design deci
 ## Development
 
 ```bash
-make check     # ruff + mypy + pytest (69 tests)
-make bench     # regenerate benchmarks/RESULTS.md (~6 min)
+make check     # ruff + mypy + pytest (100 tests)
+make bench     # regenerate benchmarks/RESULTS.md (~15 min)
 ```
 
 ## Limitations and roadmap

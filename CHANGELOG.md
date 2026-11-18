@@ -29,9 +29,12 @@ Works through audit items B2-B5, B7, B9, B10 and B12 from the project booklet.
 - **B9:** `docs/interview-guide.md`.
 - `scripts/hw_campaign/`: H1-H10 hardware fault-injection scripts. Every state change is gated behind a typed
   confirmation, reverts are registered and offered on exit, and `NICPROF_DRY_RUN=1` is supported. **Not run yet.**
+- `CLAUDE.md` and `.claude/settings.json` for working on the repo with Claude Code.
 - Data quality reports how many hosts were aligned on the monotonic clock.
 
 ### Changed
+- README and RESULTS.md lead with "pipeline consistency (simulator)". The multi-fault and adversarial tables sit
+  beside the main one.
 - `evaluate()` and sweeps default to the single-fault scenarios; composites are evaluated separately.
 
 ## 0.2.0: attribution engine
