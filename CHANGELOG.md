@@ -33,6 +33,8 @@ Works through audit items B2-B5, B7, B9, B10 and B12 from the project booklet.
 - Data quality reports how many hosts were aligned on the monotonic clock.
 
 ### Changed
+- README and RESULTS.md lead with "pipeline consistency (simulator)". The multi-fault and adversarial tables sit
+  beside the main one.
 - `evaluate()` and sweeps default to the single-fault scenarios; composites are evaluated separately.
 
 ## 0.2.0: attribution engine
