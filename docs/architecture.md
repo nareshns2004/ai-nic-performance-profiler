@@ -22,7 +22,7 @@ and answering three questions in order:
 flowchart LR
   subgraph host["Each GPU host"]
     SYS["/sys/class/infiniband<br/>counters + hw_counters"] --> AG
-    ETH["ethtool -S<br/>(PFC, PHY)"] --> AG
+    ETH["ethtool stats (ioctl)<br/>(PFC, PHY)"] --> AG
     IPL["ip -s -j link<br/>(SR-IOV VFs)"] --> AG
     AG["nicprof agent<br/>drift-free sampler"] --> JL[("counters.jsonl<br/>raw cumulative")]
     AG --> PROM["textfile .prom<br/>curated rates"]

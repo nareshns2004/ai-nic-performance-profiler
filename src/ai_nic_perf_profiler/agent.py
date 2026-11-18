@@ -67,7 +67,7 @@ def build_collectors(cfg: AgentConfig, host: str | None = None) -> tuple[list[Co
         aliases = rdma.netdev_aliases()
         collectors.append(rdma)
     if cfg.ethtool_interfaces:
-        collectors.append(EthtoolCollector(host, cfg.ethtool_interfaces, cfg.lossless_priority))
+        collectors.append(EthtoolCollector(host, cfg.ethtool_interfaces, cfg.lossless_priority, backend=cfg.ethtool_backend))  # type: ignore[arg-type]
     if "netdev" in cfg.sources:
         # On RoCE hosts the RDMA collector already covers these ports with wire-level counters.
         skip = set(aliases)

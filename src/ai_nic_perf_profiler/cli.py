@@ -58,11 +58,16 @@ def discover(rdma_root: str, net_root: str) -> None:
 @click.option("--duration", type=float, help="Stop after this many seconds (default: run until SIGTERM)")
 @click.option("--out", help="Append counter snapshots to this JSONL file")
 @click.option("--source", "sources", multiple=True, type=click.Choice(["rdma", "netdev"]), help="Sysfs sources to read")
-@click.option("--ethtool-if", "ethtool_ifs", multiple=True, help="Interface to read PFC/PHY counters from via ethtool -S")
+@click.option("--ethtool-if", "ethtool_ifs", multiple=True, help="Interface to read PFC/PHY counters from (ethtool -S statistics)")
+@click.option(
+    "--ethtool-backend",
+    type=click.Choice(["auto", "ioctl", "exec"]),
+    help="How to read ethtool stats (default auto: in-process ioctl, fall back to `ethtool -S`)",
+)
 @click.option("--sriov-pf", "sriov_pfs", multiple=True, help="PF whose VF stats to collect")
 @click.option("--prom-textfile", help="Write Prometheus metrics here (node_exporter textfile collector)")
 @click.option("--host", help="Host label (default: hostname)")
-def collect(config_path, interval, duration, out, sources, ethtool_ifs, sriov_pfs, prom_textfile, host) -> None:  # type: ignore[no-untyped-def]
+def collect(config_path, interval, duration, out, sources, ethtool_ifs, ethtool_backend, sriov_pfs, prom_textfile, host) -> None:  # type: ignore[no-untyped-def]
     """Run the per-host counter sampling agent."""
     from .agent import Agent, build_collectors
 
@@ -72,6 +77,7 @@ def collect(config_path, interval, duration, out, sources, ethtool_ifs, sriov_pf
         "output": out,
         "sources": list(sources) or None,
         "ethtool_interfaces": list(ethtool_ifs) or None,
+        "ethtool_backend": ethtool_backend,
         "sriov_pfs": list(sriov_pfs) or None,
         "prometheus_textfile": prom_textfile,
     }

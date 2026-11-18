@@ -36,9 +36,10 @@ flowchart LR
   F --> G["playbook + advisors<br/>topology · RDMA · SR-IOV"]
 ```
 
-1. **Collect** RDMA port counters and `hw_counters` from sysfs, PFC pause durations and PHY counters from `ethtool -S`,
-   and per-VF stats and rate caps from `ip -j link`. Canonicalise across sources and handle 32-bit wrap, saturating
-   IB error counters and driver resets explicitly.
+1. **Collect** RDMA port counters and `hw_counters` from sysfs, PFC pause durations and PHY counters from the
+   driver's `ethtool -S` statistics (read in-process over the SIOCETHTOOL ioctl, no fork), and per-VF stats and rate
+   caps from `ip -j link`. Canonicalise across sources and handle 32-bit wrap, saturating IB error counters (including
+   saturation reached mid-interval) and driver resets explicitly.
 2. **Align** by integrating each rank's NIC rates over *that rank's* step windows. They share a host clock, so
    cross-host skew drops out; step number acts as a logical clock across hosts. Both sides also record
    `CLOCK_MONOTONIC`, so an NTP step mid-job can't shift windows against counters.
@@ -160,10 +161,11 @@ make bench     # regenerate benchmarks/RESULTS.md (~6 min)
   ([plan](docs/methodology.md#hardware-validation-plan)).
 - The detection floor is about 4% slowdown. Next: a CUSUM detector for small sustained drifts, and per-collective
   timing via the NCCL profiler plugin.
-- `ethtool -S` forks per read. Next: the netlink `ETHTOOL_MSG_STATS_GET` collector.
+- Two concurrent faults: both are reported (primary + secondary suspects), but which one is the bottleneck isn't
+  identifiable from timing when they start together. Fix both and re-measure.
+- Cause scoring takes the strongest evidence across *all* ranks, so a decoy port's errors can veto or steal a
+  diagnosis on another rank (found by adversarial mode). Next: per-rank evidence scoring.
 - Scale: move per-rank feature extraction into the edge agent so only the steps × features regression runs centrally.
-- Bottleneck masking: a secondary fault on a faster link shows 0 ms until the primary is fixed (by design of
-  min-gated collectives; it is still listed in per-rank evidence).
 
 ## License
 

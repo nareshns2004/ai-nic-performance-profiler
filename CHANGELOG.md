@@ -2,7 +2,7 @@
 
 ## Unreleased: hardening and honest evaluation
 
-Works through audit items B2, B3, B4, B5 and B7 from the project booklet.
+Works through audit items B2, B3, B4, B5, B7 and B12 from the project booklet.
 
 ### Fixed
 - **B5: silent saturation.** A saturating IB error counter that *reaches* its maximum inside an interval
@@ -22,6 +22,9 @@ Works through audit items B2, B3, B4, B5 and B7 from the project booklet.
 - **B2: adversarial simulator mode** (`--adversarial`, `SimConfig(adversarial=True, nuisances=...)`): noisy ECN
   baseline, background tenants and a decoy port. Uses its own RNG stream, so default runs are unchanged. It is
   reported separately in RESULTS.md, with a per-nuisance ablation.
+- **B12: fork-free ethtool stats** via the SIOCETHTOOL ioctl (`collectors/ethtool_ioctl.py`), the same calls
+  `ethtool -S` makes. `--ethtool-backend auto|ioctl|exec`; `auto` falls back to forking per interface. Netlink
+  `ETHTOOL_MSG_STATS_GET` was not used because it doesn't expose driver-private counters such as `rx_prio3_pause`.
 - Data quality reports how many hosts were aligned on the monotonic clock.
 
 ### Changed
