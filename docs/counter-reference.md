@@ -71,5 +71,6 @@ Gauges: `link_speed_bps` (sysfs `rate`, netdev `speed`), `vf_max_tx_rate_bps`, `
 | 32-bit wrap | `cur < prev` and wrapped delta ≤ half the range | Wrapped delta, flag `wrap` |
 | Reset (driver reload, `perfquery -R`) | `cur < prev` and not a plausible wrap, or any 64-bit decrease | `delta = cur` (lower bound), flag `reset` |
 | Saturated IB error counter | `prev == 2^bits − 1` | Drop the counter for that interval, flag `saturated` |
+| IB error counter saturates mid-interval | `prev < 2^bits − 1` and `cur == 2^bits − 1` | Keep `cur − prev` as a lower bound, flag `saturated` |
 
 All flags are counted into the report's **data quality** section.
