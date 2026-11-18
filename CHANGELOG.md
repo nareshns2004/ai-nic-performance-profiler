@@ -27,6 +27,8 @@ Works through audit items B2-B5, B7, B9, B10 and B12 from the project booklet.
   `ethtool -S` makes. `--ethtool-backend auto|ioctl|exec`; `auto` falls back to forking per interface. Netlink
   `ETHTOOL_MSG_STATS_GET` was not used because it doesn't expose driver-private counters such as `rx_prio3_pause`.
 - **B9:** `docs/interview-guide.md`.
+- `scripts/hw_campaign/`: H1-H10 hardware fault-injection scripts. Every state change is gated behind a typed
+  confirmation, reverts are registered and offered on exit, and `NICPROF_DRY_RUN=1` is supported. **Not run yet.**
 - Data quality reports how many hosts were aligned on the monotonic clock.
 
 ### Changed

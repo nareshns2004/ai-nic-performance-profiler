@@ -145,6 +145,7 @@ src/ai_nic_perf_profiler/
   agent.py       per-host sampler      cli.py  nicprof CLI      evaluate.py  accuracy harness
 benchmarks/      run_benchmarks.py → RESULTS.md
 deploy/          kubernetes DaemonSet · systemd unit · Prometheus alerts
+scripts/hw_campaign/  H1-H10 hardware fault-injection scripts (gated; not run yet)
 docs/            architecture · methodology · counter reference · design decisions · interview guide
 ```
 

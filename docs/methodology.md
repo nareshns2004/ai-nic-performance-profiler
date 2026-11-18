@@ -177,18 +177,27 @@ are reported separately in `benchmarks/RESULTS.md`:
      has not been fixed yet, deliberately, so the published adversarial numbers
      stay a fair test.
 
-Inject each fault on a real cluster with a known ground truth, and measure the same metrics:
+### Hardware validation plan
 
-| Scenario | Injection method |
-|---|---|
-| Fabric congestion | Background `ib_write_bw` flows pinned to cross one leaf's uplinks |
-| PFC HOL blocking | Raise the switch ECN Kmin above PFC XOFF on one port |
-| Host RX backpressure | Force the NIC's PCIe link to a lower width/Gen (BIOS or `setpci`), or throttle the RQ depth |
-| Lossy retransmission | Move RDMA traffic to a lossy priority via DSCP mapping; add a switch ACL drop rate |
-| Link degradation | Known-marginal optic; or force a speed downshift with `ethtool -s` / `mlxlink` |
-| SR-IOV rate cap | `ip link set <pf> vf <n> max_tx_rate` mid-job |
-| Rail imbalance | Misconfigure `NCCL_IB_HCA` on one host |
-| Compute straggler | `nvidia-smi -lgc` to lower one GPU's clocks |
+Inject each fault on a real cluster with a known ground truth, and measure the same metrics.
+Scripts for each row, with every state change gated behind a confirmation, are in
+[`scripts/hw_campaign/`](../scripts/hw_campaign/README.md). **None has been run yet.**
+
+| # | Scenario | Injection method | Pass criterion |
+|---|---|---|---|
+| H1 | Fabric congestion | Background `ib_write_bw` flows pinned to cross one leaf's uplinks | Primary = fabric congestion, scope = leaf |
+| H2 | PFC HOL blocking | Raise the switch ECN Kmin above PFC XOFF on one port | PFC HOL; victims flagged, no false origin |
+| H3 | Host RX backpressure | Force the NIC's PCIe link to a lower Gen (`setpci`) or width (BIOS) | Culprit = that rank; senders flagged as victims |
+| H4 | Lossy retransmission | Move RDMA traffic to a lossy priority (`NCCL_IB_TC`); add a switch drop | Lossy retransmission, not link degradation |
+| H5 | Link degradation | Known-marginal optic, or force a speed downshift with `ethtool -s` | Link degradation; speed-deficit evidence |
+| H6 | SR-IOV rate cap | `ip link set <pf> vf <n> max_tx_rate` mid-job | SR-IOV cap on that host's VFs |
+| H7 | Rail imbalance | Misconfigure `NCCL_IB_HCA` on one host | Rail imbalance on that host |
+| H8 | Compute straggler | `nvidia-smi -lgc` to lower one GPU's clocks | Not the network |
+| H9 | Agent overhead | Train with and without the agent at 0.1 / 0.25 / 1 s; StepRecorder events vs `sync=` | Step-time delta not significant at 0.25 s |
+| H10 | Detection floor on real jitter | Repeat H1 at decreasing background load | Report the measured detection curve |
+
+Minimum hardware: 2 hosts × 2 RDMA NICs on one switch covers H3-H9; H1-H2 need
+two leaves or a switch you can configure.
 
 ## 7. Known limitations
 
