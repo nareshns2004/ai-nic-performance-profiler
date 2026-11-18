@@ -10,6 +10,13 @@ from pathlib import Path
 from ..model import CounterSnapshot
 
 Clock = Callable[[], float]
+MonoClock = Callable[[], int]
+Stamp = tuple[float, int]
+
+
+def midpoint(a: Stamp, b: Stamp) -> Stamp:
+    """Midpoint of two (wall seconds, monotonic ns) stamps."""
+    return (a[0] + b[0]) / 2, (a[1] + b[1]) // 2
 
 
 class Collector(ABC):
@@ -17,9 +24,14 @@ class Collector(ABC):
 
     name: str = "collector"
 
-    def __init__(self, host: str, clock: Clock = time.time) -> None:
+    def __init__(self, host: str, clock: Clock = time.time, mono_clock: MonoClock = time.monotonic_ns) -> None:
         self.host = host
         self.clock = clock
+        self.mono_clock = mono_clock
+
+    def stamp(self) -> Stamp:
+        """Read both clocks: wall time for cross-host display, monotonic for per-host alignment."""
+        return self.clock(), self.mono_clock()
 
     @abstractmethod
     def collect(self) -> list[CounterSnapshot]:
@@ -71,11 +83,12 @@ def merge_snapshots(snapshots: Iterable[CounterSnapshot], aliases: dict[str, str
         key = (snap.host, device, snap.port)
         existing = merged.get(key)
         if existing is None:
-            merged[key] = CounterSnapshot(snap.host, device, snap.port, snap.timestamp, dict(snap.counters), dict(snap.gauges), snap.source)
+            merged[key] = CounterSnapshot(snap.host, device, snap.port, snap.timestamp, dict(snap.counters), dict(snap.gauges), snap.source, snap.mono_ns)
             continue
         counters = {**snap.counters, **existing.counters}
         gauges = {**snap.gauges, **existing.gauges}
         source = "+".join(filter(None, [existing.source, snap.source]))
         ts = (existing.timestamp + snap.timestamp) / 2
-        merged[key] = CounterSnapshot(snap.host, device, snap.port, ts, counters, gauges, source)
+        mono = (existing.mono_ns + snap.mono_ns) // 2 if existing.mono_ns is not None and snap.mono_ns is not None else None
+        merged[key] = CounterSnapshot(snap.host, device, snap.port, ts, counters, gauges, source, mono)
     return list(merged.values())

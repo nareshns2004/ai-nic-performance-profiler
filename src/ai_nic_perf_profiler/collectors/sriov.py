@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from ..model import CounterSnapshot
-from .base import Clock, Collector, read_int
+from .base import Clock, Collector, midpoint, read_int
 from .ethtool import Runner, _run
 
 
@@ -79,12 +79,12 @@ class SriovCollector(Collector):
     def collect(self) -> list[CounterSnapshot]:
         out: list[CounterSnapshot] = []
         for pf in self.pfs:
-            t_start = self.clock()
+            t_start = self.stamp()
             try:
                 doc = json.loads(self.runner(["ip", "-s", "-j", "link", "show", "dev", pf]))
             except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
                 continue
-            ts = (t_start + self.clock()) / 2
+            ts, mono = midpoint(t_start, self.stamp())
             for vf in parse_ip_link_json(doc):
                 counters: dict[str, int] = {k: vf[k] for k in ("tx_bytes", "rx_bytes", "tx_packets", "rx_packets") if k in vf}
                 gauges: dict[str, float] = {}
@@ -92,5 +92,5 @@ class SriovCollector(Collector):
                     gauges["vf_max_tx_rate_bps"] = vf["max_tx_rate_mbps"] * 1e6
                 if "min_tx_rate_mbps" in vf:
                     gauges["vf_min_tx_rate_bps"] = vf["min_tx_rate_mbps"] * 1e6
-                out.append(CounterSnapshot(self.host, f"{pf}/vf{vf['vf']}", 1, ts, counters, gauges, self.name))
+                out.append(CounterSnapshot(self.host, f"{pf}/vf{vf['vf']}", 1, ts, counters, gauges, self.name, mono))
         return out

@@ -69,7 +69,7 @@ def test_ethtool_collector_uses_runner_and_maps_pfc() -> None:
         calls.append(cmd)
         return ETHTOOL_OUT
 
-    [snap] = EthtoolCollector("h", ["ens1f0np0"], lossless_priority=3, runner=runner).collect()
+    [snap] = EthtoolCollector("h", ["ens1f0np0"], lossless_priority=3, runner=runner, backend="exec").collect()
     assert calls == [["ethtool", "-S", "ens1f0np0"]]
     assert snap.counters["rx_pause_frames"] == 17
     assert snap.counters["rx_pause_duration_us"] == 3400

@@ -6,8 +6,12 @@ step itself is the unit of analysis: for each rank and step we integrate the
 rank's NIC rates over exactly ``[step.start, step.end)``, weighting each rate
 sample by its overlap with the window.
 
-A rank's step events and its NIC counters come from the same host clock, so
-this per-rank alignment is immune to cross-host clock skew. Across ranks we
+A rank's step events and its NIC counters come from the same host, so this
+per-rank alignment is immune to cross-host clock skew. Within a host, wall
+time can still step (NTP, chrony ``makestep``): when every record from a host
+carries ``CLOCK_MONOTONIC`` stamps, :func:`rebase_on_monotonic` re-derives
+that host's timestamps from the monotonic clock first, so a mid-job wall-clock
+step cannot shift step windows against counter intervals. Across ranks we
 compare by step number, which acts as a logical clock. Wall-clock offsets are
 only needed when a rank's steps were logged on a different host (for example,
 rank-0-only logging).
@@ -15,14 +19,67 @@ rank-0-only logging).
 
 from __future__ import annotations
 
+import statistics
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
-from ..model import RateSample
+from ..model import CounterSnapshot, RateSample
 from ..topology import Topology
 from ..training.events import StepEvent
+
+
+def rebase_on_monotonic(
+    snapshots: list[CounterSnapshot], steps: list[StepEvent], topology: Topology
+) -> tuple[list[CounterSnapshot], list[StepEvent], list[str]]:
+    """Put each host's timestamps on its monotonic clock where both sides allow it.
+
+    A host is rebased only when *all* of its counter snapshots and step events
+    carry monotonic stamps (mixed old/new files keep wall time). Its new
+    timestamps are ``mono + offset`` where ``offset`` is the median of
+    ``wall - mono`` over the host's records: per-host alignment then follows the
+    monotonic clock exactly, while values stay close to wall time so cross-host
+    ``clock_offsets`` and human-readable times keep working. The median picks
+    the majority side of a wall-clock step, so a step that happened mid-job
+    moves nothing.
+
+    Returns the rebased snapshots and steps and the hosts that were rebased.
+    """
+    bound = {b.rank: b.host for b in topology.ranks}
+
+    def step_host(ev: StepEvent) -> str | None:
+        return ev.host or bound.get(ev.rank)
+
+    usable: dict[str, bool] = defaultdict(lambda: True)
+    diffs: dict[str, list[float]] = defaultdict(list)
+    for snap in snapshots:
+        if snap.mono_ns is None:
+            usable[snap.host] = False
+        else:
+            diffs[snap.host].append(snap.timestamp - snap.mono_ns / 1e9)
+    for ev in steps:
+        host = step_host(ev)
+        if host is None:
+            continue
+        if ev.mono_start_ns is None or ev.mono_end_ns is None:
+            usable[host] = False
+        else:
+            diffs[host].append(ev.start - ev.mono_start_ns / 1e9)
+            diffs[host].append(ev.end - ev.mono_end_ns / 1e9)
+    offsets = {h: statistics.median(d) for h, d in diffs.items() if d and usable[h]}
+    if not offsets:
+        return snapshots, steps, []
+
+    new_snaps = [replace(s, timestamp=s.mono_ns / 1e9 + offsets[s.host]) if s.host in offsets and s.mono_ns is not None else s for s in snapshots]
+    new_steps: list[StepEvent] = []
+    for ev in steps:
+        host = step_host(ev)
+        if host in offsets and ev.mono_start_ns is not None and ev.mono_end_ns is not None:
+            off = offsets[host]
+            ev = replace(ev, start=ev.mono_start_ns / 1e9 + off, end=ev.mono_end_ns / 1e9 + off)
+        new_steps.append(ev)
+    return new_snaps, new_steps, sorted(offsets)
 
 
 class RateIndex:

@@ -5,7 +5,8 @@ agent:
   sources: [rdma, netdev]    # rdma: /sys/class/infiniband, netdev: /sys/class/net
   rdma_devices: null         # e.g. [mlx5_0, mlx5_1]; null = all
   netdev_interfaces: null    # null = all physical interfaces not already covered by rdma
-  ethtool_interfaces: []     # RoCE netdevs to read PFC pause/duration + PHY counters from (forks ethtool; keep interval_s >= 1)
+  ethtool_interfaces: []     # RoCE netdevs to read PFC pause/duration + PHY counters from
+  ethtool_backend: auto      # auto = in-process SIOCETHTOOL ioctl, falling back to `ethtool -S`; or ioctl / exec
   sriov_pfs: []              # PFs whose per-VF stats and rate caps to collect
   lossless_priority: 3       # PFC priority carrying RDMA traffic
   output: counters.jsonl

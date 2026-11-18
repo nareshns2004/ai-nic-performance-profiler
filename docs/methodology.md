@@ -17,6 +17,34 @@ Across ranks, comparison is by **step number**, which works as a logical clock. 
 offsets matter only when a rank's step events are missing and borrowed from
 another host (rank-0-only logging). Then `topology.clock_offsets` shifts the window.
 
+**Clock steps on one host.** Sharing a host clock is not enough if that clock
+*jumps*: an NTP or chrony `makestep` mid-job moves every later timestamp, and
+the step and the rate interval that straddle the jump absorb it (a 0.4 s step
+becomes 2.4 s; one rate interval is stretched and its rate deflated). So both
+sides record two clocks: wall time and `CLOCK_MONOTONIC` nanoseconds
+(`mono_ns` on counter snapshots, `mono_start_ns`/`mono_end_ns` on step events).
+`CLOCK_MONOTONIC` is system-wide on Linux, so the agent and the training
+process read the same timeline. Before alignment, `rebase_on_monotonic`
+rewrites each host's timestamps as `mono + median(wall − mono)` when every
+record from that host has monotonic stamps. Alignment then follows the monotonic
+clock exactly, and values stay close to wall time for cross-host
+`clock_offsets` and display. Rate intervals use `Δmono` whenever both reads have it.
+Files from 0.2 have no monotonic fields and fall back to wall time; the
+report's data-quality section says how many hosts were aligned on the monotonic
+clock. A reboot resets `CLOCK_MONOTONIC`, so treat a reboot as a new job.
+`tests/test_clock.py` steps one host's wall clock by +2 s mid-run and checks
+that attribution is unchanged.
+
+**Measuring the step without perturbing it.** `StepRecorder` defaults to CUDA
+events when torch and a GPU are present: it records an event at each step edge
+and resolves it lazily once the GPU has passed it. Events are mapped to the host
+clocks through a calibration point, which costs one `synchronize` at start-up and
+one every `recalibrate_every` steps (default 1000). The older `sync=` mode
+synchronises at both step edges. That is exact, but it drains the GPU queue twice
+per step and removes CPU/GPU overlap at the boundary, so the step it measures can
+be slower than the step it would otherwise have been. The size of that effect has
+not been measured on hardware yet; it is hardware plan item H9.
+
 **Sampling resolution.** Window averages blur when the sampling interval is
 comparable to the step time: a 1 s sample straddling three 0.4 s steps smears
 one step's anomaly into its neighbours. `benchmarks/RESULTS.md` §4 shows this
@@ -129,27 +157,60 @@ noise floor, and the separation between network faults and compute stragglers.
 The simulator and the rules encode the same domain model, so 100% at full
 severity is a consistency check, not evidence of real-world accuracy.
 
+Two parts of the evaluation are there to push against that circularity, and both
+are reported separately in `benchmarks/RESULTS.md`:
+
+* **Two concurrent faults** (§1b, `nicprof evaluate --multi`). Two faults on
+  disjoint hosts start together. Both are found, as primary or secondary suspect, but
+  the primary is right only about as often as chance. Their features rise together,
+  so the regression has no timing information to decide which one sets the step time.
+* **Adversarial mode** (§1c, `nicprof evaluate --adversarial`). Nuisances the
+  rules were not written around: a heavy-tailed ECN baseline with bursts,
+  background tenants, and a decoy port whose FEC/CRC/sequence counters rise
+  during the fault window without slowing anything down. The ablation shows the
+  decoy does almost all of the damage. That reveals two weaknesses:
+  1. A correlated but non-causal counter that coincides with a slowdown gets
+     credit for it. This is the basic limit of a correlational method.
+  2. `score_causes` takes physical-layer evidence from the *worst rank in the
+     job*, so CRC errors on an unrelated port veto a lossy-retransmission
+     diagnosis on a different rank. Evidence should be scored per rank. This
+     has not been fixed yet, deliberately, so the published adversarial numbers
+     stay a fair test.
+
 ### Hardware validation plan
 
-Inject each fault on a real cluster with a known ground truth, and measure the same metrics:
+Inject each fault on a real cluster with a known ground truth, and measure the same metrics.
+Scripts for each row, with every state change gated behind a confirmation, are in
+[`scripts/hw_campaign/`](../scripts/hw_campaign/README.md). **None has been run yet.**
 
-| Scenario | Injection method |
-|---|---|
-| Fabric congestion | Background `ib_write_bw` flows pinned to cross one leaf's uplinks |
-| PFC HOL blocking | Raise the switch ECN Kmin above PFC XOFF on one port |
-| Host RX backpressure | Force the NIC's PCIe link to a lower width/Gen (BIOS or `setpci`), or throttle the RQ depth |
-| Lossy retransmission | Move RDMA traffic to a lossy priority via DSCP mapping; add a switch ACL drop rate |
-| Link degradation | Known-marginal optic; or force a speed downshift with `ethtool -s` / `mlxlink` |
-| SR-IOV rate cap | `ip link set <pf> vf <n> max_tx_rate` mid-job |
-| Rail imbalance | Misconfigure `NCCL_IB_HCA` on one host |
-| Compute straggler | `nvidia-smi -lgc` to lower one GPU's clocks |
+| # | Scenario | Injection method | Pass criterion |
+|---|---|---|---|
+| H1 | Fabric congestion | Background `ib_write_bw` flows pinned to cross one leaf's uplinks | Primary = fabric congestion, scope = leaf |
+| H2 | PFC HOL blocking | Raise the switch ECN Kmin above PFC XOFF on one port | PFC HOL; victims flagged, no false origin |
+| H3 | Host RX backpressure | Force the NIC's PCIe link to a lower Gen (`setpci`) or width (BIOS) | Culprit = that rank; senders flagged as victims |
+| H4 | Lossy retransmission | Move RDMA traffic to a lossy priority (`NCCL_IB_TC`); add a switch drop | Lossy retransmission, not link degradation |
+| H5 | Link degradation | Known-marginal optic, or force a speed downshift with `ethtool -s` | Link degradation; speed-deficit evidence |
+| H6 | SR-IOV rate cap | `ip link set <pf> vf <n> max_tx_rate` mid-job | SR-IOV cap on that host's VFs |
+| H7 | Rail imbalance | Misconfigure `NCCL_IB_HCA` on one host | Rail imbalance on that host |
+| H8 | Compute straggler | `nvidia-smi -lgc` to lower one GPU's clocks | Not the network |
+| H9 | Agent overhead | Train with and without the agent at 0.1 / 0.25 / 1 s; StepRecorder events vs `sync=` | Step-time delta not significant at 0.25 s |
+| H10 | Detection floor on real jitter | Repeat H1 at decreasing background load | Report the measured detection curve |
+
+Minimum hardware: 2 hosts × 2 RDMA NICs on one switch covers H3-H9; H1-H2 need
+two leaves or a switch you can configure.
 
 ## 7. Known limitations
 
-* **Bottleneck masking.** With a min-gated collective, a secondary fault on a
-  faster link contributes 0 ms until the primary is fixed. The additive model
-  correctly attributes 0 ms to it, but fixing the primary can then reveal the
-  secondary. Per-rank evidence (`top_anomalous_ranks`) still lists it.
+* **Concurrent faults.** With a min-gated collective only the slowest link sets
+  the step time, so in principle a second fault costs 0 ms until the first is
+  fixed. In practice, when both start together their features are collinear and
+  the regression can't tell which one is the bottleneck: credit goes to whichever
+  has more anomalous features (simulator §1b). Episodes therefore list
+  **secondary suspects**: other network causes with strong evidence on ranks the
+  primary doesn't cover. Fix both and re-measure.
+* **Cross-rank evidence.** Cause scores use the strongest anomaly per feature
+  across *all* ranks, so evidence on one port can suppress or support a cause
+  on another (found by the adversarial decoy; see §6).
 * **Linear-in-log model.** Large, saturating effects (a link flap that stalls
   everything for 2 s) are only approximately additive.
 * **Detection floor.** Slowdowns below the `min_relative_slowdown` gate and the

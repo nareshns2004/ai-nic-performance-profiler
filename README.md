@@ -36,17 +36,20 @@ flowchart LR
   F --> G["playbook + advisors<br/>topology · RDMA · SR-IOV"]
 ```
 
-1. **Collect** RDMA port counters and `hw_counters` from sysfs, PFC pause durations and PHY counters from `ethtool -S`,
-   and per-VF stats and rate caps from `ip -j link`. Canonicalise across sources and handle 32-bit wrap, saturating
-   IB error counters and driver resets explicitly.
+1. **Collect** RDMA port counters and `hw_counters` from sysfs, PFC pause durations and PHY counters from the
+   driver's `ethtool -S` statistics (read in-process over the SIOCETHTOOL ioctl, no fork), and per-VF stats and rate
+   caps from `ip -j link`. Canonicalise across sources and handle 32-bit wrap, saturating IB error counters (including
+   saturation reached mid-interval) and driver resets explicitly.
 2. **Align** by integrating each rank's NIC rates over *that rank's* step windows. They share a host clock, so
-   cross-host skew drops out; step number acts as a logical clock across hosts.
+   cross-host skew drops out; step number acts as a logical clock across hosts. Both sides also record
+   `CLOCK_MONOTONIC`, so an NTP step mid-job can't shift windows against counters.
 3. **Detect** degradation episodes against a median/MAD baseline, ignoring checkpoint spikes.
 4. **Decompose** excess step time with non-negative ridge regression on the *worst rank per feature* (collectives
    run at the slowest link's pace). For an additive model, coefficient × delta is the exact Shapley value.
 5. **Diagnose** with evidence rules that know PFC semantics (paused ≠ pausing), physical errors explain
    retransmits, and so on. Localise to rank, host, leaf or fabric, and emit concrete remediation with a verification step.
-   If the counters don't explain the slowdown, say **"not the network"**.
+   If the counters don't explain the slowdown, say **"not the network"**. Independent faults on other ranks are listed
+   as **secondary suspects** rather than hidden behind the primary.
 6. **Decide**: the SR-IOV and fabric advisors estimate what a change would buy, calibrated to measured step time.
 
 Details: [architecture](docs/architecture.md) · [methodology](docs/methodology.md) ·
@@ -82,8 +85,8 @@ Advisor highlights:
 pip install -e ".[dev]"          # Python ≥ 3.10; deps: click, numpy, PyYAML
 
 nicprof demo                      # simulate a fault, run the pipeline from files, print the report
-nicprof scenarios                 # list the 9 fault scenarios
-nicprof evaluate --seeds 5        # accuracy table; add --sweep severity for the sensitivity curve
+nicprof scenarios                 # list the fault scenarios (9 single-fault, 2 two-fault)
+nicprof evaluate --seeds 5        # simulator accuracy table; --sweep severity, --multi, --adversarial
 ```
 
 On real hosts:
@@ -98,7 +101,7 @@ In the training loop ([full example](examples/pytorch_training_hook.py)):
 
 ```python
 from ai_nic_perf_profiler import StepRecorder
-with StepRecorder(f"steps.rank{rank}.jsonl", rank=rank, sync=torch.cuda.synchronize) as rec:
+with StepRecorder(f"steps.rank{rank}.jsonl", rank=rank) as rec:  # CUDA events; no per-step sync
     for batch in loader:
         with rec.step():
             train_step(batch)
@@ -142,6 +145,7 @@ src/ai_nic_perf_profiler/
   agent.py       per-host sampler      cli.py  nicprof CLI      evaluate.py  accuracy harness
 benchmarks/      run_benchmarks.py → RESULTS.md
 deploy/          kubernetes DaemonSet · systemd unit · Prometheus alerts
+scripts/hw_campaign/  H1-H10 hardware fault-injection scripts (gated; not run yet)
 docs/            architecture · methodology · counter reference · design decisions · interview guide
 ```
 
@@ -158,10 +162,11 @@ make bench     # regenerate benchmarks/RESULTS.md (~6 min)
   ([plan](docs/methodology.md#hardware-validation-plan)).
 - The detection floor is about 4% slowdown. Next: a CUSUM detector for small sustained drifts, and per-collective
   timing via the NCCL profiler plugin.
-- `ethtool -S` forks per read. Next: the netlink `ETHTOOL_MSG_STATS_GET` collector.
+- Two concurrent faults: both are reported (primary + secondary suspects), but which one is the bottleneck isn't
+  identifiable from timing when they start together. Fix both and re-measure.
+- Cause scoring takes the strongest evidence across *all* ranks, so a decoy port's errors can veto or steal a
+  diagnosis on another rank (found by adversarial mode). Next: per-rank evidence scoring.
 - Scale: move per-rank feature extraction into the edge agent so only the steps × features regression runs centrally.
-- Bottleneck masking: a secondary fault on a faster link shows 0 ms until the primary is fixed (by design of
-  min-gated collectives; it is still listed in per-rank evidence).
 
 ## License
 

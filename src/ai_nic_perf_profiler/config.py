@@ -15,9 +15,10 @@ class AgentConfig:
     sources: list[str] = field(default_factory=lambda: ["rdma", "netdev"])
     rdma_devices: list[str] | None = None
     netdev_interfaces: list[str] | None = None
-    # ethtool forks a process per interface per tick (~ms each); keep
-    # interval_s >= 1 when enabling it.
     ethtool_interfaces: list[str] = field(default_factory=list)
+    # "auto": in-process SIOCETHTOOL ioctl, falling back to forking `ethtool -S`
+    # per interface; "ioctl" or "exec" force one path.
+    ethtool_backend: str = "auto"
     sriov_pfs: list[str] = field(default_factory=list)
     lossless_priority: int = 3
     output: str = "counters.jsonl"

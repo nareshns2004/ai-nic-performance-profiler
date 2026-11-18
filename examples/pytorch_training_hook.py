@@ -33,9 +33,11 @@ def main() -> None:
     opt = torch.optim.SGD(model.parameters(), lr=1e-3)
     grad_bytes = sum(p.numel() * p.element_size() for p in model.parameters())
 
-    # sync=torch.cuda.synchronize makes the host-side step boundary match the
-    # GPU-side one, so the step window lines up with the NIC traffic it caused.
-    with StepRecorder(f"/data/steps.rank{rank}.jsonl", rank=rank, sync=torch.cuda.synchronize) as rec:
+    # With torch + CUDA available the recorder times each step with CUDA events,
+    # so step windows follow the GPU (and the NIC traffic it caused) without a
+    # per-step synchronize that would itself change the step time. Pass
+    # sync=torch.cuda.synchronize to force the older, exact-but-intrusive mode.
+    with StepRecorder(f"/data/steps.rank{rank}.jsonl", rank=rank) as rec:
         for _ in range(500):
             with rec.step(comm_bytes=grad_bytes):
                 x = torch.randn(64, 8192, device="cuda")

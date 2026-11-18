@@ -71,6 +71,20 @@ def render(report: AttributionReport) -> str:
             for d in ep.diagnoses[1:]:
                 out.append(f"| {TITLE[d.cause]} | {d.share:.0%} | {d.evidence_score:.2f} | {', '.join(map(str, d.culprit_ranks[:8])) or '-'} | {d.suspect} |")
             out.append("")
+        secondary = ep.secondary_suspects
+        if secondary:
+            out += [
+                "### Secondary suspects",
+                "",
+                "Independent faults on other ranks. Their counters are clearly anomalous, but when two faults start together the "
+                "step time can't say which one is the bottleneck, so fix and re-check both.",
+                "",
+            ]
+            for d in secondary:
+                out.append(
+                    f"- **{TITLE[d.cause]}** on ranks {', '.join(map(str, d.culprit_ranks[:8]))} (evidence {d.evidence_score:.2f}, {d.attributed_s:.2f} s attributed): {d.suspect}"
+                )
+            out.append("")
         contrib = sorted(((k, v) for k, v in ep.feature_contributions.items() if v > 1e-6), key=lambda kv: -kv[1])
         if contrib:
             out += ["<details><summary>Feature-level decomposition</summary>", "", "| feature | seconds | share of excess |", "|---|---:|---:|"]
@@ -85,6 +99,7 @@ def render(report: AttributionReport) -> str:
         + (f" (missing: {', '.join(dq.missing_endpoints)})" if dq.missing_endpoints else ""),
         f"- Step windows: {dq.windows_total}, low counter coverage: {dq.windows_low_coverage}, inferred from another rank's clock: {dq.windows_inferred}",
         f"- Counter anomalies handled: {', '.join(f'{k}={v}' for k, v in sorted(dq.counter_flags.items())) or 'none'}",
+        f"- Hosts aligned on the monotonic clock: {dq.hosts_on_monotonic} (others use wall time)",
         "",
     ]
     return "\n".join(out)

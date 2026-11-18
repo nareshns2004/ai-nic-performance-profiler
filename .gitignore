@@ -25,3 +25,6 @@ report*.md
 # Editors
 .vscode/
 .idea/
+
+# Hardware campaign settings (site-specific host names)
+campaign.env

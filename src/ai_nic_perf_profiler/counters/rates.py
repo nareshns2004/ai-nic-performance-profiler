@@ -47,7 +47,10 @@ def counter_delta(name: str, prev: int, cur: int) -> tuple[int | None, str | Non
 
 
 def to_rate(prev: CounterSnapshot, cur: CounterSnapshot) -> RateSample | None:
-    dt = cur.timestamp - prev.timestamp
+    # Prefer the monotonic clock for the interval length: a wall-clock step
+    # between two reads would otherwise inflate or shrink every rate.
+    both_mono = prev.mono_ns is not None and cur.mono_ns is not None
+    dt = (cur.mono_ns - prev.mono_ns) / 1e9 if both_mono else cur.timestamp - prev.timestamp  # type: ignore[operator]
     if dt <= 0:
         return None
     rates: dict[str, float] = {}

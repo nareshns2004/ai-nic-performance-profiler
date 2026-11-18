@@ -28,7 +28,7 @@ dependencies = [
 dev = ["pytest>=8.0", "ruff>=0.5", "mypy>=1.10", "types-PyYAML"]
 
 [project.urls]
-Repository = "https://github.com/nareshns2004/ai-nic-perf-profiler"
+Repository = "https://github.com/nareshns2004/ai-nic-performance-profiler"
 
 [project.scripts]
 nicprof = "ai_nic_perf_profiler.cli:main"

@@ -4,12 +4,13 @@ import pytest
 
 from ai_nic_perf_profiler.analysis import analyze
 from ai_nic_perf_profiler.analysis.causes import RootCause
+from ai_nic_perf_profiler.evaluate import run_trial
 from ai_nic_perf_profiler.io import read_snapshots, read_steps
-from ai_nic_perf_profiler.sim import SCENARIOS, SimConfig, simulate
+from ai_nic_perf_profiler.sim import MULTI_FAULTS, SINGLE_FAULTS, SimConfig, simulate
 from ai_nic_perf_profiler.topology import Topology
 
 FAST = SimConfig(steps=140, fault_start=70, fault_end=120, checkpoint_every=50, seed=3)
-FAULTS = [s for s in SCENARIOS if s != "healthy"]
+FAULTS = list(SINGLE_FAULTS)
 
 
 @pytest.mark.parametrize("scenario", FAULTS)
@@ -69,3 +70,31 @@ def test_missing_endpoint_is_reported_not_fatal() -> None:
     report = analyze(snaps, result.steps, result.topology)
     assert report.data_quality.missing_endpoints == [key]
     assert report.episodes[0].primary.cause is RootCause.PFC_HOL_BLOCKING
+
+
+@pytest.mark.parametrize("scenario", MULTI_FAULTS)
+def test_two_concurrent_faults_are_both_reported(scenario: str) -> None:
+    # B3: two faults on disjoint hosts, same onset. Which one is the bottleneck
+    # is not identifiable from timing alone, but neither may disappear.
+    result = simulate(scenario, FAST)
+    truth = result.ground_truth
+    report = analyze(result.snapshots, result.steps, result.topology)
+    [episode] = report.episodes
+    assert episode.primary is not None
+    listed = {(d.cause.value, r) for d in [episode.primary, *episode.secondary_suspects] for r in d.culprit_ranks}
+    assert any((truth["root_cause"], r) in listed for r in truth["culprit_ranks"])
+    assert any((truth["secondary_cause"], r) in listed for r in truth["secondary_culprit_ranks"])
+    assert episode.to_dict()["secondary_suspects"]
+
+
+def test_multi_fault_trial_scores_secondary() -> None:
+    from ai_nic_perf_profiler.config import AnalysisConfig
+
+    trial = run_trial("multi_link_backpressure", 0, FAST, AnalysisConfig())
+    assert trial.secondary_found is True and trial.both_found is True
+
+
+def test_single_fault_scenarios_have_no_secondary_suspects() -> None:
+    result = simulate("link_degradation", FAST)
+    report = analyze(result.snapshots, result.steps, result.topology)
+    assert report.episodes[0].secondary_suspects == []

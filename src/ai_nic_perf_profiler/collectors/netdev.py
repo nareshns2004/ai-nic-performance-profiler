@@ -13,7 +13,7 @@ from pathlib import Path
 
 from ..counters.catalog import NETDEV_COUNTERS, canonicalize
 from ..model import CounterSnapshot
-from .base import Clock, Collector, read_counter_dir, read_int
+from .base import Clock, Collector, midpoint, read_counter_dir, read_int
 
 
 class NetdevSysfsCollector(Collector):
@@ -50,14 +50,14 @@ class NetdevSysfsCollector(Collector):
         out: list[CounterSnapshot] = []
         for iface in self.discover():
             base = self.root / iface
-            t_start = self.clock()
+            t_start = self.stamp()
             raw = read_counter_dir(base / "statistics")
-            t_end = self.clock()
+            ts, mono = midpoint(t_start, self.stamp())
             if not raw:
                 continue
             gauges: dict[str, float] = {}
             speed_mbps = read_int(base / "speed")
             if speed_mbps is not None and speed_mbps > 0:
                 gauges["link_speed_bps"] = speed_mbps * 1e6
-            out.append(CounterSnapshot(self.host, iface, 1, (t_start + t_end) / 2, canonicalize(raw, NETDEV_COUNTERS), gauges, self.name))
+            out.append(CounterSnapshot(self.host, iface, 1, ts, canonicalize(raw, NETDEV_COUNTERS), gauges, self.name, mono))
         return out
