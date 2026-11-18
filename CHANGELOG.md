@@ -2,7 +2,7 @@
 
 ## Unreleased: hardening and honest evaluation
 
-Works through audit items B2, B3, B4, B5, B7 and B12 from the project booklet.
+Works through audit items B2-B5, B7, B9, B10 and B12 from the project booklet.
 
 ### Fixed
 - **B5: silent saturation.** A saturating IB error counter that *reaches* its maximum inside an interval
@@ -12,6 +12,7 @@ Works through audit items B2, B3, B4, B5, B7 and B12 from the project booklet.
   `CLOCK_MONOTONIC` alongside wall time. `rebase_on_monotonic` aligns each host on its monotonic clock when every
   record from it has one, and rate intervals use Δmono. A test steps one host's wall clock by +2 s mid-run and checks
   that attribution is unchanged. Files from 0.2 still load and fall back to wall time.
+- **B10:** repository URL in `pyproject.toml` (the GitHub repo is `ai-nic-performance-profiler`).
 
 ### Added
 - **B7: CUDA-event step timing.** `StepRecorder` defaults to CUDA events when torch and a GPU are available: one
@@ -25,6 +26,7 @@ Works through audit items B2, B3, B4, B5, B7 and B12 from the project booklet.
 - **B12: fork-free ethtool stats** via the SIOCETHTOOL ioctl (`collectors/ethtool_ioctl.py`), the same calls
   `ethtool -S` makes. `--ethtool-backend auto|ioctl|exec`; `auto` falls back to forking per interface. Netlink
   `ETHTOOL_MSG_STATS_GET` was not used because it doesn't expose driver-private counters such as `rx_prio3_pause`.
+- **B9:** `docs/interview-guide.md`.
 - Data quality reports how many hosts were aligned on the monotonic clock.
 
 ### Changed
