@@ -47,7 +47,8 @@ flowchart LR
    run at the slowest link's pace). For an additive model, coefficient × delta is the exact Shapley value.
 5. **Diagnose** with evidence rules that know PFC semantics (paused ≠ pausing), physical errors explain
    retransmits, and so on. Localise to rank, host, leaf or fabric, and emit concrete remediation with a verification step.
-   If the counters don't explain the slowdown, say **"not the network"**.
+   If the counters don't explain the slowdown, say **"not the network"**. Independent faults on other ranks are listed
+   as **secondary suspects** rather than hidden behind the primary.
 6. **Decide**: the SR-IOV and fabric advisors estimate what a change would buy, calibrated to measured step time.
 
 Details: [architecture](docs/architecture.md) · [methodology](docs/methodology.md) ·

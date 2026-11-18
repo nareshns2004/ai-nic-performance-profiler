@@ -35,12 +35,15 @@ from ..topology import Topology
 from ..training.events import StepEvent
 from .align import RateIndex, build_step_table, rebase_on_monotonic
 from .baseline import choose_baseline, degraded_mask, find_episodes, robust_center_scale
+from .causes import RootCause as RC
 from .diagnosis import Diagnosis, EpisodeEvidence, diagnose
 from .features import FEATURE_INDEX, FEATURE_NAMES, SPEC, derive_features
 from .regression import nnls_ridge, r_squared
 
 MODEL_FEATURES = [n for n in FEATURE_NAMES if SPEC[n].in_model]
 MODEL_COLS = [FEATURE_INDEX[n] for n in MODEL_FEATURES]
+# Evidence score (0-1) a non-primary cause needs to be listed as a secondary suspect.
+SECONDARY_MIN_EVIDENCE = 0.5
 
 
 @dataclass
@@ -63,6 +66,25 @@ class EpisodeReport:
     def primary(self) -> Diagnosis | None:
         return self.diagnoses[0] if self.diagnoses else None
 
+    @property
+    def secondary_suspects(self) -> list[Diagnosis]:
+        """Other network causes with strong evidence on ranks the primary doesn't cover.
+
+        When two faults start together their features rise together, so the
+        regression cannot tell which one sets the step time: the masked fault
+        may get ~0 s even though its counters are unambiguous. Listing it
+        separately keeps it from hiding behind the primary.
+        """
+        p = self.primary
+        if p is None:
+            return []
+        covered = set(p.culprit_ranks) | set(p.victim_ranks)
+        return [
+            d
+            for d in self.diagnoses[1:]
+            if d.cause is not RC.NON_NETWORK and d.evidence_score >= SECONDARY_MIN_EVIDENCE and d.culprit_ranks and not set(d.culprit_ranks) & covered
+        ]
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "start_step": self.start_step,
@@ -78,6 +100,15 @@ class EpisodeReport:
             "feature_contributions_s": {k: round(v, 4) for k, v in sorted(self.feature_contributions.items(), key=lambda kv: -kv[1]) if v > 0},
             "top_anomalous_ranks": [{"rank": r, "max_z": round(z, 1)} for r, z in self.rank_anomaly],
             "diagnoses": [d.to_dict() for d in self.diagnoses],
+            "secondary_suspects": [
+                {
+                    "cause": d.cause.value,
+                    "culprit_ranks": d.culprit_ranks,
+                    "evidence_score": round(d.evidence_score, 3),
+                    "attributed_s": round(d.attributed_s, 4),
+                }
+                for d in self.secondary_suspects
+            ],
         }
 
 

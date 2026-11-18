@@ -11,6 +11,10 @@ Metrics per scenario, aggregated over seeds:
 * **explained**: fraction of excess step time the decomposition attributes to
   network features. It should be high for network faults and low for
   ``compute_straggler``.
+* **secondary found** (two-fault scenarios only): the masked fault's cause is
+  listed as a secondary suspect, or as the primary, with at least one correct
+  culprit rank. **both found** requires the bottleneck fault to be found
+  in the same way.
 """
 
 from __future__ import annotations
@@ -21,8 +25,9 @@ from dataclasses import dataclass, field, replace
 import numpy as np
 
 from .analysis.attribution import AttributionReport, EpisodeReport, analyze
+from .analysis.diagnosis import Diagnosis
 from .config import AnalysisConfig
-from .sim import SCENARIOS, SimConfig, SimResult, simulate
+from .sim import SINGLE_FAULTS, SimConfig, SimResult, simulate
 
 
 @dataclass
@@ -37,6 +42,8 @@ class Trial:
     predicted: str | None
     seconds: float
     true_slowdown_pct: float = 0.0
+    secondary_found: bool | None = None
+    both_found: bool | None = None
 
 
 @dataclass
@@ -69,6 +76,8 @@ class ScenarioSummary:
             "explained": self._mean([t.explained for t in self.trials]),
             "analyze_s": self._mean([t.seconds for t in self.trials]),
             "true_slowdown_pct": self._mean([t.true_slowdown_pct for t in self.trials]),
+            "secondary_found": self._mean([None if t.secondary_found is None else float(t.secondary_found) for t in self.trials]),
+            "both_found": self._mean([None if t.both_found is None else float(t.both_found) for t in self.trials]),
         }
 
 
@@ -106,13 +115,36 @@ def run_trial(scenario: str, seed: int, sim: SimConfig, analysis: AnalysisConfig
     if ep is None or ep.primary is None:
         return Trial(scenario, seed, False, False, None, None, None, None, elapsed, slowdown)
     primary = ep.primary
+    secondary_found = both_found = None
+    if truth.get("secondary_cause"):
+        candidates = [primary, *ep.secondary_suspects]
+        primary_found = _found(candidates, truth["root_cause"], truth["culprit_ranks"])
+        secondary_found = _found(candidates, truth["secondary_cause"], truth["secondary_culprit_ranks"])
+        both_found = primary_found and secondary_found
     precision = recall = None
     if truth["culprit_ranks"]:
         predicted, actual = set(primary.culprit_ranks), set(truth["culprit_ranks"])
         precision = len(predicted & actual) / len(predicted) if predicted else 0.0
         recall = len(predicted & actual) / len(actual)
     explained = ep.explained_s / ep.excess_s if ep.excess_s > 0 else None
-    return Trial(scenario, seed, True, primary.cause.value == truth["root_cause"], precision, recall, explained, primary.cause.value, elapsed, slowdown)
+    return Trial(
+        scenario,
+        seed,
+        True,
+        primary.cause.value == truth["root_cause"],
+        precision,
+        recall,
+        explained,
+        primary.cause.value,
+        elapsed,
+        slowdown,
+        secondary_found,
+        both_found,
+    )
+
+
+def _found(candidates: list[Diagnosis], cause: str, culprits: list[int]) -> bool:
+    return any(d.cause.value == cause and set(d.culprit_ranks) & set(culprits) for d in candidates)
 
 
 def evaluate(
@@ -124,7 +156,7 @@ def evaluate(
     sim = sim or SimConfig()
     analysis = analysis or AnalysisConfig()
     out = []
-    for name in scenarios or list(SCENARIOS):
+    for name in scenarios or ["healthy", *SINGLE_FAULTS]:
         summary = ScenarioSummary(name)
         for seed in range(seeds):
             summary.trials.append(run_trial(name, seed, sim, analysis))
@@ -151,11 +183,29 @@ def to_markdown(summaries: list[ScenarioSummary]) -> str:
             f"| {r['scenario']} | {r['trials']} | {detect} | {f(r['top1'])} | {f(r['culprit_precision'])} | "
             f"{f(r['culprit_recall'])} | {f(r['explained'])} | {f(r['analyze_s'], pct=False)} |"
         )
-    faults = [s for s in summaries if s.scenario != "healthy"]
+    faults = [s for s in summaries if s.scenario in SINGLE_FAULTS]
     if faults:
         overall = np.mean([t.top1 for s in faults for t in s.trials])
         lines.append("")
         lines.append(f"Overall top-1 root-cause accuracy over {sum(len(s.trials) for s in faults)} fault trials: **{overall:.1%}**")
+    return "\n".join(lines)
+
+
+def multi_fault_markdown(summaries: list[ScenarioSummary]) -> str:
+    """Table for the two-fault scenarios: the primary is the slower (bottleneck) fault."""
+    lines = [
+        "| scenario | trials | detected | top-1 = bottleneck | bottleneck culprit recall | secondary found | both found |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for s in summaries:
+        r = s.row()
+
+        def pct(v: object) -> str:
+            return f"{v:.0%}" if isinstance(v, float) else "-"
+
+        lines.append(
+            f"| {r['scenario']} | {r['trials']} | {pct(r['detect'])} | {pct(r['top1'])} | {pct(r['culprit_recall'])} | {pct(r['secondary_found'])} | {pct(r['both_found'])} |"
+        )
     return "\n".join(lines)
 
 
@@ -170,7 +220,7 @@ def sweep(
     """Re-run the evaluation while varying one :class:`SimConfig` field
     (e.g. ``severity`` or ``sample_interval_s``)."""
     base = sim or SimConfig()
-    faults = scenarios or [s for s in SCENARIOS if s != "healthy"]
+    faults = scenarios or list(SINGLE_FAULTS)
     out = []
     for v in values:
         cfg = replace(base)

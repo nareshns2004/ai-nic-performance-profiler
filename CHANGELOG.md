@@ -2,7 +2,7 @@
 
 ## Unreleased: hardening and honest evaluation
 
-Works through audit items B4, B5 and B7 from the project booklet.
+Works through audit items B3, B4, B5 and B7 from the project booklet.
 
 ### Fixed
 - **B5: silent saturation.** A saturating IB error counter that *reaches* its maximum inside an interval
@@ -17,7 +17,12 @@ Works through audit items B4, B5 and B7 from the project booklet.
 - **B7: CUDA-event step timing.** `StepRecorder` defaults to CUDA events when torch and a GPU are available: one
   `synchronize` to calibrate at start-up (and every `recalibrate_every` steps), none per step, resolved lazily.
   `sync=` and a host-clock mode remain. torch is still optional.
+- **B3: two-fault scenarios** (`multi_link_backpressure`, `multi_lossy_congestion`), placed on disjoint hosts, plus
+  **secondary suspects** in episode reports (JSON and Markdown). `nicprof evaluate --multi`.
 - Data quality reports how many hosts were aligned on the monotonic clock.
+
+### Changed
+- `evaluate()` and sweeps default to the single-fault scenarios; composites are evaluated separately.
 
 ## 0.2.0: attribution engine
 

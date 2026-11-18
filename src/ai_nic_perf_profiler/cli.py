@@ -197,12 +197,18 @@ def demo(scenario: str, seed: int, keep: str | None) -> None:
 @click.option("--scenario", "scenario_names", multiple=True, help="Limit to these scenarios")
 @click.option("--sweep", "sweep_param", type=click.Choice(["severity", "sample_interval_s"]), help="Sweep a simulator parameter")
 @click.option("--values", default="", help="Comma-separated sweep values")
-def evaluate(seeds: int, scenario_names: tuple[str, ...], sweep_param: str | None, values: str) -> None:
-    """Measure attribution accuracy against simulator ground truth."""
+@click.option("--multi", is_flag=True, help="Evaluate the two-concurrent-fault scenarios instead")
+def evaluate(seeds: int, scenario_names: tuple[str, ...], sweep_param: str | None, values: str, multi: bool) -> None:
+    """Measure attribution accuracy against simulator ground truth (simulator results, not hardware)."""
     from .evaluate import evaluate as run_eval
-    from .evaluate import sweep, sweep_markdown, to_markdown
+    from .evaluate import multi_fault_markdown, sweep, sweep_markdown, to_markdown
+    from .sim import MULTI_FAULTS
 
     names = list(scenario_names) or None
+    click.echo("_Simulator results, not hardware._\n")
+    if multi:
+        click.echo(multi_fault_markdown(run_eval(names or list(MULTI_FAULTS), seeds)))
+        return
     if sweep_param:
         vals = [float(v) for v in values.split(",") if v] or ([0.1, 0.2, 0.35, 0.5, 1.0] if sweep_param == "severity" else [0.05, 0.1, 0.2, 0.4, 0.8])
         click.echo(sweep_markdown(sweep_param, sweep(sweep_param, vals, names, seeds)))
