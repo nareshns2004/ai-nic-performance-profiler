@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased: hardening and honest evaluation
+
+Works through audit item B5 from the project booklet.
+
+### Fixed
+- **B5: silent saturation.** A saturating IB error counter that *reaches* its maximum inside an interval
+  (`prev < max`, `cur == max`) is now flagged `saturated`. Its delta is kept as a lower bound; before, it was
+  returned with no flag.
+
 ## 0.2.0: attribution engine
 
 Rebuilt from the 0.1 scaffold into an end-to-end attribution system.

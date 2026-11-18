@@ -8,7 +8,9 @@ production fleets:
 * **Saturation** - IBTA PortCounters error fields (``symbol_error`` is 16-bit,
   ``link_downed`` 8-bit) stick at their maximum until someone runs
   ``perfquery -R``. Once saturated, the delta is unknowable; we drop the
-  counter and flag it rather than report a fake zero.
+  counter and flag it rather than report a fake zero. If the counter *reaches*
+  its maximum during an interval, the visible delta is only a lower bound: we
+  keep it but flag the interval too.
 * **Reset** - driver reload, firmware reset or a manual clear. A decrease that
   is not a plausible wrap is a reset; the post-reset value is a lower bound on
   the true delta, which we use.
@@ -27,8 +29,12 @@ from .catalog import spec_for
 def counter_delta(name: str, prev: int, cur: int) -> tuple[int | None, str | None]:
     """Return ``(delta, flag)`` for one counter between two reads."""
     spec = spec_for(name)
-    if spec.overflow == "saturate" and prev >= spec.max_value:
-        return None, f"saturated:{name}"
+    if spec.overflow == "saturate":
+        if prev >= spec.max_value:
+            return None, f"saturated:{name}"
+        if cur >= spec.max_value:
+            # Hit the ceiling inside this interval: cur - prev is a lower bound.
+            return spec.max_value - prev, f"saturated:{name}"
     if cur >= prev:
         return cur - prev, None
     if spec.overflow == "wrap" and spec.bits <= 32:

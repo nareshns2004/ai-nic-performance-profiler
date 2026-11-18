@@ -38,6 +38,31 @@ def test_saturated_counter_is_dropped() -> None:
     assert delta is None and flag == "saturated:symbol_error"
 
 
+def test_counter_reaching_max_inside_interval_is_flagged() -> None:
+    # B5: prev < max, cur == max. The true delta may be larger than what we can
+    # see, so keep the clipped delta as a lower bound but never stay silent.
+    delta, flag = counter_delta("symbol_error", 65_000, 65_535)
+    assert delta == 535 and flag == "saturated:symbol_error"
+    delta, flag = counter_delta("link_downed", 3, 255)
+    assert delta == 252 and flag == "saturated:link_downed"
+
+
+def test_saturating_counter_below_max_is_clean() -> None:
+    assert counter_delta("symbol_error", 10, 65_534) == (65_524, None)
+
+
+def test_wrapping_counter_at_max_is_not_saturation() -> None:
+    # 32-bit wrapping counters pass through max; only "saturate" specs stick.
+    assert counter_delta("out_of_buffer", 10, 2**32 - 1) == (2**32 - 11, None)
+
+
+def test_saturation_inside_interval_reaches_data_quality() -> None:
+    r = to_rate(snap(0.0, symbol_error=65_000), snap(1.0, symbol_error=65_535))
+    assert r is not None
+    assert r.flags == ("saturated:symbol_error",)
+    assert r.rates == {"symbol_error": 535.0}
+
+
 def test_to_rate_divides_by_interval_and_skips_new_counters() -> None:
     r = to_rate(snap(10.0, tx_bytes=0), snap(12.0, tx_bytes=1000, rx_bytes=5))
     assert r is not None
