@@ -11,6 +11,12 @@ The simulator encodes the same domain knowledge as the diagnosis rules, so it
 tests the *pipeline* (alignment, baselining, decomposition, localisation under
 noise, resets, skew and spikes). It can't show that the rules match real
 hardware. That requires the fault-injection plan in ``docs/methodology.md``.
+
+``SimConfig(adversarial=True)`` adds nuisances the rules were *not* written
+around (see :class:`Adversary`): a heavy-tailed ECN baseline with bursts,
+background tenants sharing some NICs, and a decoy port whose error and FEC
+counters rise during the fault window without slowing anything down. It draws
+from its own random stream, so non-adversarial runs are bit-for-bit unchanged.
 """
 
 from __future__ import annotations
@@ -71,6 +77,68 @@ class SimConfig:
     lossless_priority: int = 3
     severity: float = 1.0
     seed: int = 0
+    adversarial: bool = False
+    # Which adversarial nuisances to enable (subset of NUISANCES) when adversarial=True.
+    nuisances: tuple[str, ...] = ("ecn_noise", "tenants", "decoy")
+
+
+NUISANCES = ("ecn_noise", "tenants", "decoy")
+
+
+@dataclass
+class Adversary:
+    """Nuisance signals that are not causal for step time.
+
+    * **Noisy ECN baseline**: per-step ECN/CNP multipliers are lognormal with
+      sigma 1.0 (vs 0.3), and ~3% of (step, rank) cells carry a 30x burst.
+    * **Background tenants**: two NICs also carry another tenant's traffic in
+      ~15% of steps (30% of line rate plus a little ECN and PFC), which moves
+      utilisation, rail skew and pause counters without moving step time.
+    * **Correlated non-causal counters**: during the fault window a decoy port
+      on a host the fault doesn't touch shows 10x FEC corrections, CRC/symbol
+      errors and out-of-sequence packets, but keeps full bandwidth.
+    """
+
+    ecn_noise: np.ndarray  # (steps, n) multiplier
+    tenant_ranks: list[int]
+    tenant_on: np.ndarray  # (steps, len(tenant_ranks)) bool
+    decoy: int
+    enabled: frozenset[str] = frozenset(NUISANCES)
+
+    @classmethod
+    def draw(cls, cfg: SimConfig, n: int, avoid: set[int], host_of: list[str]) -> Adversary:
+        rng = np.random.default_rng([cfg.seed, 0xAD5])
+        noise = rng.lognormal(0.0, 1.0, (cfg.steps, n))
+        noise = np.where(rng.random((cfg.steps, n)) < 0.03, noise * 30.0, noise)
+        tenants = [int(r) for r in rng.choice(n, size=2, replace=False)]
+        on = rng.random((cfg.steps, len(tenants))) < 0.15
+        avoid_hosts = {host_of[r] for r in avoid}
+        candidates = [r for r in range(n) if host_of[r] not in avoid_hosts] or [r for r in range(n) if r not in avoid] or list(range(n))
+        decoy = int(rng.choice(candidates))
+        unknown = set(cfg.nuisances) - set(NUISANCES)
+        if unknown:
+            raise ValueError(f"unknown nuisances {sorted(unknown)}; choose from {NUISANCES}")
+        return cls(noise, tenants, on, decoy, frozenset(cfg.nuisances))
+
+    def apply(self, busy: np.ndarray, s: int, r: int, in_fault: bool, link_Bps: float, comm: float) -> None:
+        if "ecn_noise" in self.enabled:
+            f = self.ecn_noise[s, r]
+            for name in ("ecn_marked_packets", "cnp_sent", "cnp_handled"):
+                busy[CI[name]] *= f
+        if "tenants" in self.enabled and r in self.tenant_ranks and self.tenant_on[s, self.tenant_ranks.index(r)]:
+            extra = 0.3 * link_Bps
+            busy[CI["tx_bytes"]] += extra
+            busy[CI["rx_bytes"]] += extra
+            busy[CI["tx_packets"]] += extra / 4096
+            busy[CI["rx_packets"]] += extra / 4096
+            busy[CI["ecn_marked_packets"]] += extra / 4096 * 2e-3
+            busy[CI["rx_pause_frames"]] += 200.0
+            busy[CI["rx_pause_duration_us"]] += 0.01e6
+        if "decoy" in self.enabled and in_fault and r == self.decoy:
+            busy[CI["fec_corrected_bits"]] *= 10.0
+            busy[CI["symbol_error"]] += 5.0
+            busy[CI["rx_crc_errors"]] += 3.0
+            busy[CI["out_of_sequence"]] += 50.0
 
 
 @dataclass
@@ -266,6 +334,7 @@ def simulate(scenario: str, cfg: SimConfig | None = None) -> SimResult:
         fault, parts = plan_composite(scenario, cfg, topo, rng)
     else:
         fault = plan_fault(scenario, cfg, topo, rng) if scenario != "healthy" else healthy
+    adversary = Adversary.draw(cfg, n, fault.touched(), host_of) if cfg.adversarial else None
     link_Bps = cfg.link_gbps * 1e9 / 8
     vol = ring_allreduce_bytes_per_rank(cfg.allreduce_bytes, n)
     nc = len(COUNTERS)
@@ -314,6 +383,8 @@ def simulate(scenario: str, cfg: SimConfig | None = None) -> SimResult:
             # Rare background events, as integer counts spread over the comm phase.
             for name, rate in BASE_EVENTS.items():
                 busy[CI[name]] += rng.poisson(rate * step_dur) / comm
+            if adversary is not None:
+                adversary.apply(busy, s, r, in_fault, link_Bps, comm)
 
             bounds[r] += [comm_start, end]
             seg_rates[r] += [idle, busy]
@@ -363,6 +434,7 @@ def simulate(scenario: str, cfg: SimConfig | None = None) -> SimResult:
         "fault_steps": [cfg.fault_start, cfg.fault_end] if scenario != "healthy" else None,
         "description": sc.description,
         "seed": cfg.seed,
+        "adversarial": cfg.adversarial,
         "counter_reset_rank": reset_rank,
         "clock_offsets_s": offsets,
     }

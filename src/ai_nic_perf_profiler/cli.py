@@ -112,7 +112,8 @@ def scenarios() -> None:
 @click.option("--nics-per-host", default=4, show_default=True)
 @click.option("--sample-interval", default=0.1, show_default=True)
 @click.option("--rank0-only", is_flag=True, help="Log step events on rank 0 only (exercises clock-offset alignment)")
-def simulate(scenario, out_dir, seed, severity, steps, hosts, nics_per_host, sample_interval, rank0_only) -> None:  # type: ignore[no-untyped-def]
+@click.option("--adversarial", is_flag=True, help="Add nuisances the rules don't encode (noisy ECN, background tenants, decoy port)")
+def simulate(scenario, out_dir, seed, severity, steps, hosts, nics_per_host, sample_interval, rank0_only, adversarial) -> None:  # type: ignore[no-untyped-def]
     """Generate counters + step events for a fault SCENARIO with ground truth."""
     from .sim import SimConfig
     from .sim import simulate as run_sim
@@ -125,6 +126,7 @@ def simulate(scenario, out_dir, seed, severity, steps, hosts, nics_per_host, sam
         severity=severity,
         sample_interval_s=sample_interval,
         steps_rank0_only=rank0_only,
+        adversarial=adversarial,
         fault_start=steps // 2,
         fault_end=steps * 5 // 6,
     )
@@ -198,22 +200,24 @@ def demo(scenario: str, seed: int, keep: str | None) -> None:
 @click.option("--sweep", "sweep_param", type=click.Choice(["severity", "sample_interval_s"]), help="Sweep a simulator parameter")
 @click.option("--values", default="", help="Comma-separated sweep values")
 @click.option("--multi", is_flag=True, help="Evaluate the two-concurrent-fault scenarios instead")
-def evaluate(seeds: int, scenario_names: tuple[str, ...], sweep_param: str | None, values: str, multi: bool) -> None:
+@click.option("--adversarial", is_flag=True, help="Simulate with nuisances the rules don't encode; reported separately")
+def evaluate(seeds: int, scenario_names: tuple[str, ...], sweep_param: str | None, values: str, multi: bool, adversarial: bool) -> None:
     """Measure attribution accuracy against simulator ground truth (simulator results, not hardware)."""
     from .evaluate import evaluate as run_eval
     from .evaluate import multi_fault_markdown, sweep, sweep_markdown, to_markdown
-    from .sim import MULTI_FAULTS
+    from .sim import MULTI_FAULTS, SimConfig
 
     names = list(scenario_names) or None
-    click.echo("_Simulator results, not hardware._\n")
+    sim = SimConfig(adversarial=adversarial)
+    click.echo(f"_Simulator results{' (adversarial mode)' if adversarial else ''}, not hardware._\n")
     if multi:
-        click.echo(multi_fault_markdown(run_eval(names or list(MULTI_FAULTS), seeds)))
+        click.echo(multi_fault_markdown(run_eval(names or list(MULTI_FAULTS), seeds, sim)))
         return
     if sweep_param:
         vals = [float(v) for v in values.split(",") if v] or ([0.1, 0.2, 0.35, 0.5, 1.0] if sweep_param == "severity" else [0.05, 0.1, 0.2, 0.4, 0.8])
-        click.echo(sweep_markdown(sweep_param, sweep(sweep_param, vals, names, seeds)))
+        click.echo(sweep_markdown(sweep_param, sweep(sweep_param, vals, names, seeds, sim)))
     else:
-        click.echo(to_markdown(run_eval(names, seeds)))
+        click.echo(to_markdown(run_eval(names, seeds, sim)))
 
 
 # --------------------------------------------------------------------------- advisors

@@ -84,8 +84,8 @@ Advisor highlights:
 pip install -e ".[dev]"          # Python ≥ 3.10; deps: click, numpy, PyYAML
 
 nicprof demo                      # simulate a fault, run the pipeline from files, print the report
-nicprof scenarios                 # list the 9 fault scenarios
-nicprof evaluate --seeds 5        # accuracy table; add --sweep severity for the sensitivity curve
+nicprof scenarios                 # list the fault scenarios (9 single-fault, 2 two-fault)
+nicprof evaluate --seeds 5        # simulator accuracy table; --sweep severity, --multi, --adversarial
 ```
 
 On real hosts:

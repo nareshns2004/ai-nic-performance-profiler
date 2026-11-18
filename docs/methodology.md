@@ -157,7 +157,25 @@ noise floor, and the separation between network faults and compute stragglers.
 The simulator and the rules encode the same domain model, so 100% at full
 severity is a consistency check, not evidence of real-world accuracy.
 
-### Hardware validation plan
+Two parts of the evaluation are there to push against that circularity, and both
+are reported separately in `benchmarks/RESULTS.md`:
+
+* **Two concurrent faults** (§1b, `nicprof evaluate --multi`). Two faults on
+  disjoint hosts start together. Both are found, as primary or secondary suspect, but
+  the primary is right only about as often as chance. Their features rise together,
+  so the regression has no timing information to decide which one sets the step time.
+* **Adversarial mode** (§1c, `nicprof evaluate --adversarial`). Nuisances the
+  rules were not written around: a heavy-tailed ECN baseline with bursts,
+  background tenants, and a decoy port whose FEC/CRC/sequence counters rise
+  during the fault window without slowing anything down. The ablation shows the
+  decoy does almost all of the damage. That reveals two weaknesses:
+  1. A correlated but non-causal counter that coincides with a slowdown gets
+     credit for it. This is the basic limit of a correlational method.
+  2. `score_causes` takes physical-layer evidence from the *worst rank in the
+     job*, so CRC errors on an unrelated port veto a lossy-retransmission
+     diagnosis on a different rank. Evidence should be scored per rank. This
+     has not been fixed yet, deliberately, so the published adversarial numbers
+     stay a fair test.
 
 Inject each fault on a real cluster with a known ground truth, and measure the same metrics:
 
@@ -174,10 +192,16 @@ Inject each fault on a real cluster with a known ground truth, and measure the s
 
 ## 7. Known limitations
 
-* **Bottleneck masking.** With a min-gated collective, a secondary fault on a
-  faster link contributes 0 ms until the primary is fixed. The additive model
-  correctly attributes 0 ms to it, but fixing the primary can then reveal the
-  secondary. Per-rank evidence (`top_anomalous_ranks`) still lists it.
+* **Concurrent faults.** With a min-gated collective only the slowest link sets
+  the step time, so in principle a second fault costs 0 ms until the first is
+  fixed. In practice, when both start together their features are collinear and
+  the regression can't tell which one is the bottleneck: credit goes to whichever
+  has more anomalous features (simulator §1b). Episodes therefore list
+  **secondary suspects**: other network causes with strong evidence on ranks the
+  primary doesn't cover. Fix both and re-measure.
+* **Cross-rank evidence.** Cause scores use the strongest anomaly per feature
+  across *all* ranks, so evidence on one port can suppress or support a cause
+  on another (found by the adversarial decoy; see §6).
 * **Linear-in-log model.** Large, saturating effects (a link flap that stalls
   everything for 2 s) are only approximately additive.
 * **Detection floor.** Slowdowns below the `min_relative_slowdown` gate and the

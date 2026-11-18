@@ -2,7 +2,7 @@
 
 ## Unreleased: hardening and honest evaluation
 
-Works through audit items B3, B4, B5 and B7 from the project booklet.
+Works through audit items B2, B3, B4, B5 and B7 from the project booklet.
 
 ### Fixed
 - **B5: silent saturation.** A saturating IB error counter that *reaches* its maximum inside an interval
@@ -19,6 +19,9 @@ Works through audit items B3, B4, B5 and B7 from the project booklet.
   `sync=` and a host-clock mode remain. torch is still optional.
 - **B3: two-fault scenarios** (`multi_link_backpressure`, `multi_lossy_congestion`), placed on disjoint hosts, plus
   **secondary suspects** in episode reports (JSON and Markdown). `nicprof evaluate --multi`.
+- **B2: adversarial simulator mode** (`--adversarial`, `SimConfig(adversarial=True, nuisances=...)`): noisy ECN
+  baseline, background tenants and a decoy port. Uses its own RNG stream, so default runs are unchanged. It is
+  reported separately in RESULTS.md, with a per-nuisance ablation.
 - Data quality reports how many hosts were aligned on the monotonic clock.
 
 ### Changed
