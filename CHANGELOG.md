@@ -2,7 +2,7 @@
 
 ## Unreleased: hardening and honest evaluation
 
-Works through audit items B4 and B5 from the project booklet.
+Works through audit items B4, B5 and B7 from the project booklet.
 
 ### Fixed
 - **B5: silent saturation.** A saturating IB error counter that *reaches* its maximum inside an interval
@@ -14,6 +14,9 @@ Works through audit items B4 and B5 from the project booklet.
   that attribution is unchanged. Files from 0.2 still load and fall back to wall time.
 
 ### Added
+- **B7: CUDA-event step timing.** `StepRecorder` defaults to CUDA events when torch and a GPU are available: one
+  `synchronize` to calibrate at start-up (and every `recalibrate_every` steps), none per step, resolved lazily.
+  `sync=` and a host-clock mode remain. torch is still optional.
 - Data quality reports how many hosts were aligned on the monotonic clock.
 
 ## 0.2.0: attribution engine

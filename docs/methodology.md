@@ -35,6 +35,16 @@ clock. A reboot resets `CLOCK_MONOTONIC`, so treat a reboot as a new job.
 `tests/test_clock.py` steps one host's wall clock by +2 s mid-run and checks
 that attribution is unchanged.
 
+**Measuring the step without perturbing it.** `StepRecorder` defaults to CUDA
+events when torch and a GPU are present: it records an event at each step edge
+and resolves it lazily once the GPU has passed it. Events are mapped to the host
+clocks through a calibration point, which costs one `synchronize` at start-up and
+one every `recalibrate_every` steps (default 1000). The older `sync=` mode
+synchronises at both step edges. That is exact, but it drains the GPU queue twice
+per step and removes CPU/GPU overlap at the boundary, so the step it measures can
+be slower than the step it would otherwise have been. The size of that effect has
+not been measured on hardware yet; it is hardware plan item H9.
+
 **Sampling resolution.** Window averages blur when the sampling interval is
 comparable to the step time: a 1 s sample straddling three 0.4 s steps smears
 one step's anomaly into its neighbours. `benchmarks/RESULTS.md` §4 shows this

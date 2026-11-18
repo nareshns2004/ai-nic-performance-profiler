@@ -46,7 +46,7 @@ flowchart LR
 | | `counters/rates.py` | Cumulative → per-second rates handling wrap, saturation (including mid-interval) and reset; Δt from the monotonic clock |
 | Collection | `collectors/*` | sysfs RDMA, sysfs netdev, ethtool (in-process SIOCETHTOOL ioctl, `ethtool -S` fallback), SR-IOV; every snapshot stamped with wall + monotonic time; `merge_snapshots` joins RoCE netdev ↔ RDMA device |
 | | `agent.py` | Deadline-scheduled loop, ring buffer, JSONL sink, Prometheus textfile, self-metrics |
-| Training | `training/recorder.py` | Step boundaries from the training loop (with CUDA sync) |
+| Training | `training/recorder.py` | Step boundaries from the training loop (CUDA events by default; `sync=` or host-clock modes) |
 | | `training/collectives.py` | busbw conventions, alpha-beta ring all-reduce model |
 | Analysis | `analysis/align.py` | Overlap-weighted integration of rates over each rank's step windows |
 | | `analysis/features.py` | Dimensionless, "higher is worse" features with z-score floors |

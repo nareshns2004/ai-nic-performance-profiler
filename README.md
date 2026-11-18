@@ -99,7 +99,7 @@ In the training loop ([full example](examples/pytorch_training_hook.py)):
 
 ```python
 from ai_nic_perf_profiler import StepRecorder
-with StepRecorder(f"steps.rank{rank}.jsonl", rank=rank, sync=torch.cuda.synchronize) as rec:
+with StepRecorder(f"steps.rank{rank}.jsonl", rank=rank) as rec:  # CUDA events; no per-step sync
     for batch in loader:
         with rec.step():
             train_step(batch)

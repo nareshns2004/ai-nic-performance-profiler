@@ -94,6 +94,7 @@ def test_step_recorder_sync_mode(tmp_path) -> None:
     mono = iter([10_000_000_000, 10_500_000_000, 11_000_000_000, 11_750_000_000])
     syncs = []
     rec = StepRecorder(tmp_path / "s.jsonl", rank=3, host="h", sync=lambda: syncs.append(1), clock=lambda: next(ticks), mono_clock=lambda: next(mono))
+    assert rec.timing == "sync"
     with rec:
         for _ in range(2):
             with rec.step():
